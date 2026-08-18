@@ -97,9 +97,10 @@ fieldset.survey-question { min-inline-size: 0; margin: 0; padding: 25px 0; borde
 .scale b { font-size: 1.25rem; color: var(--navy); }
 .footer { padding: 19px 5.5vw; border-top: 1px solid var(--line); background: var(--white); color: var(--muted); font-size: .9rem; text-align: center; }
 .modal-backdrop { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: 20px; background: rgba(0,0,0,.48); }
-.modal { width: min(550px, 100%); padding: 28px; border-radius: 20px; background: white; box-shadow: 0 20px 60px rgba(0,0,0,.25); }
+.modal { width: min(550px, 100%); max-height: calc(100dvh - 40px); padding: 24px; overflow-y: auto; border-radius: 20px; background: white; box-shadow: 0 20px 60px rgba(0,0,0,.25); overscroll-behavior: contain; }
 .modal-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
 .modal-lead { color: var(--muted); line-height: 1.4; }
+.client-form { gap: 12px; margin-top: 20px; }
 .form-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .access-choice { display: flex; align-items: flex-start; gap: 12px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--mist); cursor: pointer; }
 .access-choice input { width: 18px; height: 18px; margin: 2px 0 0; accent-color: var(--navy); }
@@ -155,4 +156,5 @@ fieldset.survey-question { min-inline-size: 0; margin: 0; padding: 25px 0; borde
   .scale { grid-template-columns: repeat(5, minmax(0,1fr)); gap: 5px; }
   .scale label { padding: 9px 3px; font-size: .7rem; }
   .form-columns { grid-template-columns: 1fr; }
+  .modal { max-height: calc(100dvh - 28px); padding: 22px; }
 }
