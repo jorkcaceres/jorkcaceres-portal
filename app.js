@@ -4,7 +4,7 @@ const app = document.querySelector('#app');
 const logo = 'assets/jorkcaceres-horizontal-negro.png';
 const supabase = createClient('https://zfzsigdyycgaqvbauffk.supabase.co', 'sb_publishable_K5khETTDgbkAmAOeiDg2Tw_gKfdxBeq');
 const state = { session: null, profile: null };
-const privateRoutes = new Set(['inicio', 'proyectos', 'encuestas', 'admin']);
+const privateRoutes = new Set(['inicio', 'proyectos', 'encuestas', 'admin', 'admin-clientes', 'admin-proyectos', 'admin-pagos', 'admin-encuestas']);
 const helpUrl = 'https://wa.me/573243062809?text=Hola%2C+necesito+ayuda.+Vengo+del+portal+de+Jorkc%C3%A1ceres';
 const footer = () => '<footer class="footer">© 2026 Jorkcáceres. Portal para clientes. V1.0</footer>';
 const arrowIcon = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7"/><path d="M8 7h9v9"/></svg>';
@@ -77,7 +77,68 @@ function csatView() {
   app.innerHTML = `${state.session ? header() : publicHeader()}<main class="page survey-wrap"><p class="eyebrow">Encuesta de satisfacción</p><h1>Tu opinión me ayuda a mejorar.</h1><p class="lead">Responder esta encuesta te tomará menos de un minuto.</p><form class="survey-card form" onsubmit="submitCsat(event)"><label class="field">Correo electrónico <small>Usa el correo con el que accedes al Portal Jorkcáceres o el que has utilizado para comunicarte conmigo.</small><input name="email" type="email" placeholder="nombre@empresa.com" autocomplete="email" required></label><fieldset class="survey-question"><legend>1. En general, ¿qué tan satisfecho estás con el trabajo realizado? *</legend><div class="scale">${[1,2,3,4,5].map(n => `<label><input type="radio" name="satisfaction" value="${n}" required><b>${n}</b>${['Muy insatisfecho','Insatisfecho','Neutral','Satisfecho','Muy satisfecho'][n - 1]}</label>`).join('')}</div></fieldset><fieldset class="survey-question"><legend>2. ¿El resultado cumplió con lo que esperabas? *</legend><div class="choice-list">${[['completamente','Sí, completamente'],['gran_parte','En gran parte'],['parcialmente','Parcialmente'],['no','No']].map(([v,l]) => `<label class="choice"><input type="radio" name="expectation" value="${v}" required> ${l}</label>`).join('')}</div></fieldset><fieldset class="survey-question"><legend>3. ¿Volverías a trabajar conmigo? *</legend><div class="choice-list">${[['si','Sí'],['tal_vez','Tal vez'],['no','No']].map(([v,l]) => `<label class="choice"><input type="radio" name="return" value="${v}" required> ${l}</label>`).join('')}</div></fieldset><label class="field survey-question">4. ¿Hay algo que debería mejorar? <small>Opcional</small><textarea name="improvement" placeholder="Comparte aquí cualquier comentario que consideres importante."></textarea></label>${btn('Enviar encuesta', '', 'primary', 'submit')}</form></main>${footer()}`;
 }
 
-function adminView() { app.innerHTML = `${header()}<main class="page"><p class="eyebrow">Administración</p><h1>Hola, Jorge.</h1><p class="lead">Este espacio está protegido para la administración del Portal Jorkcáceres.</p><div class="notice">Solo las cuentas con rol de administrador pueden acceder a esta ruta.</div></main>${footer()}`; }
+const adminIcon = (type) => ({
+  clients: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+  projects: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 8h10M7 12h10M7 16h6"/></svg>',
+  payments: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h3"/></svg>',
+  surveys: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>'
+}[type]);
+
+const adminNav = (active) => `<nav class="admin-nav"><a class="${active === 'admin' ? 'active' : ''}" href="#admin">Resumen</a><a class="${active === 'clientes' ? 'active' : ''}" href="#admin-clientes">Clientes</a><a class="${active === 'proyectos' ? 'active' : ''}" href="#admin-proyectos">Proyectos</a><a class="${active === 'pagos' ? 'active' : ''}" href="#admin-pagos">Pagos</a><a class="${active === 'encuestas' ? 'active' : ''}" href="#admin-encuestas">Encuestas</a></nav>`;
+
+async function adminView() {
+  loading('Administración');
+  const queries = ['clients', 'projects', 'project_payments', 'csat_responses'].map(table => supabase.from(table).select('*', { count: 'exact', head: true }));
+  const [clients, projects, payments, surveys] = await Promise.all(queries);
+  const error = [clients, projects, payments, surveys].find(result => result.error)?.error;
+  if (error) return dataError('Administración', error);
+  const entries = [
+    ['clients', 'Clientes', 'Organiza la información y el acceso de cada cliente.', clients.count || 0, '#admin-clientes'],
+    ['projects', 'Proyectos', 'Consulta los proyectos, estados y entregables registrados.', projects.count || 0, '#admin-proyectos'],
+    ['payments', 'Pagos', 'Mantén la trazabilidad de pagos y comprobantes.', payments.count || 0, '#admin-pagos'],
+    ['surveys', 'Encuestas', 'Revisa respuestas y métricas de satisfacción.', surveys.count || 0, '#admin-encuestas']
+  ];
+  app.innerHTML = `${header()}<main class="page admin-page"><p class="eyebrow">Administración</p><h1>Gestión del portal.</h1><p class="lead">Centraliza la relación con tus clientes y la información de cada servicio.</p>${adminNav('admin')}<section class="admin-grid">${entries.map(([type, title, description, total, target]) => `<article class="admin-card"><div class="admin-card-top"><span class="admin-icon">${adminIcon(type)}</span><strong class="admin-count">${total}</strong></div><h2>${title}</h2><p>${description}</p>${btn(`Gestionar ${title.toLowerCase()}`, `location.hash='${target}'`, 'secondary')}</article>`).join('')}</section></main>${footer()}`;
+}
+
+function adminModuleShell(section, title, description, body) {
+  app.innerHTML = `${header()}<main class="page admin-page"><p class="eyebrow">Administración</p><h1>${title}</h1><p class="lead">${description}</p>${adminNav(section)}${body}</main>${footer()}`;
+}
+
+async function adminClientsView() {
+  loading('Clientes');
+  const { data, error } = await supabase.from('clients').select('*').order('created_at', { ascending: false });
+  if (error) return dataError('Clientes', error);
+  const body = data.length ? `<section class="admin-list">${data.map(client => `<article class="admin-list-card"><div><p class="eyebrow">${client.portal_access ? 'Con acceso al portal' : 'Contacto'}</p><h2>${esc(`${client.first_name} ${client.last_name}`)}</h2><p>${esc(client.company_name || 'Sin empresa registrada')} · ${esc(client.email)}</p></div><span class="status ${client.status === 'inactivo' ? 'progress' : ''}">${client.status === 'activo' ? 'Activo' : 'Inactivo'}</span></article>`).join('')}</section>` : '<div class="empty">Aún no hay clientes registrados. El siguiente paso será habilitar su creación desde este panel.</div>';
+  adminModuleShell('clientes', 'Clientes', 'Consulta los contactos y clientes con información registrada en el portal.', body);
+}
+
+async function adminProjectsView() {
+  loading('Proyectos');
+  const { data, error } = await supabase.from('projects').select('*, clients(first_name,last_name,company_name)').order('project_date', { ascending: false });
+  if (error) return dataError('Proyectos', error);
+  const body = data.length ? `<section class="admin-list">${data.map(project => `<article class="admin-list-card"><div><p class="eyebrow">${esc(project.code)}</p><h2>${esc(project.title)}</h2><p>${esc(project.clients ? `${project.clients.first_name} ${project.clients.last_name}` : 'Cliente no disponible')} · ${esc(project.service)}</p></div><span class="status ${project.status === 'en_curso' ? 'progress' : ''}">${status(project.status)}</span></article>`).join('')}</section>` : '<div class="empty">Aún no hay proyectos registrados.</div>';
+  adminModuleShell('proyectos', 'Proyectos', 'Revisa los servicios en curso y el historial de proyectos registrados.', body);
+}
+
+async function adminPaymentsView() {
+  loading('Pagos');
+  const { data, error } = await supabase.from('project_payments').select('*, projects(code,title)').order('payment_date', { ascending: false });
+  if (error) return dataError('Pagos', error);
+  const body = data.length ? `<section class="admin-list">${data.map(payment => `<article class="admin-list-card"><div><p class="eyebrow">${esc(payment.code)}</p><h2>${esc(payment.concept)}</h2><p>${esc(payment.projects?.title || 'Proyecto no disponible')} · ${payment.amount ? money(payment.amount) : 'Sin monto registrado'}</p></div><span class="status ${payment.status === 'pendiente' ? 'progress' : ''}">${payment.status === 'confirmado' ? 'Confirmado' : 'Pendiente'}</span></article>`).join('')}</section>` : '<div class="empty">Aún no hay pagos registrados.</div>';
+  adminModuleShell('pagos', 'Pagos', 'Consulta el estado y la trazabilidad de los pagos de cada proyecto.', body);
+}
+
+async function adminSurveysView() {
+  loading('Encuestas');
+  const { data, error } = await supabase.from('csat_responses').select('*').order('submitted_at', { ascending: false });
+  if (error) return dataError('Encuestas', error);
+  const average = data.length ? (data.reduce((sum, item) => sum + item.satisfaction, 0) / data.length).toFixed(1) : '—';
+  const csat = data.length ? Math.round((data.filter(item => item.satisfaction >= 4).length / data.length) * 100) : '—';
+  const metrics = `<section class="metric-grid"><article class="metric-card"><span>Respuestas</span><strong>${data.length}</strong></article><article class="metric-card"><span>Promedio</span><strong>${average}${data.length ? ' / 5' : ''}</strong></article><article class="metric-card"><span>CSAT</span><strong>${csat}${data.length ? '%' : ''}</strong></article></section>`;
+  const list = data.length ? `<section class="admin-list">${data.map(response => `<article class="admin-list-card"><div><p class="eyebrow">CSAT · ${date(response.submitted_at)}</p><h2>${response.satisfaction} / 5 · ${expectation(response.expectation)}</h2><p>${esc(response.email)}${response.improvement ? ` · ${esc(response.improvement)}` : ''}</p></div><span class="status">Respondida</span></article>`).join('')}</section>` : '<div class="empty">Aún no hay respuestas de satisfacción.</div>';
+  adminModuleShell('encuestas', 'Encuestas', 'Consulta los resultados de satisfacción y su evolución.', metrics + list);
+}
 
 async function signIn(event) { event.preventDefault(); const email = document.querySelector('#login-email').value.trim(); const password = document.querySelector('#login-password').value; const { error } = await supabase.auth.signInWithPassword({ email, password }); if (error) return loginView('Revisa tu correo y contraseña e inténtalo nuevamente.'); await hydrate(); location.hash = state.profile?.role === 'admin' ? '#admin' : '#inicio'; }
 async function signOut() { await supabase.auth.signOut(); state.session = null; state.profile = null; location.hash = '#login'; }
@@ -85,7 +146,7 @@ async function requestPasswordReset() { const email = document.querySelector('#l
 async function updatePassword(event) { event.preventDefault(); const password = document.querySelector('#new-password').value; if (password !== document.querySelector('#confirm-password').value) return modal('Las contraseñas no coinciden', '<p>Verifica que ambas contraseñas sean iguales.</p>'); const { error } = await supabase.auth.updateUser({ password }); if (error) return modal('No fue posible guardar la contraseña', `<p>${esc(errorText(error))}</p>`); await hydrate(); location.hash = state.profile?.role === 'admin' ? '#admin' : '#inicio'; }
 async function submitCsat(event) { event.preventDefault(); const form = new FormData(event.target); const { error } = await supabase.from('csat_responses').insert({ email: form.get('email').trim().toLowerCase(), satisfaction: Number(form.get('satisfaction')), expectation: form.get('expectation'), return_intent: form.get('return'), improvement: form.get('improvement').trim() || null }); if (error) return modal('No fue posible enviar la encuesta', `<p>${esc(errorText(error))}</p>`); event.target.reset(); modal('¡Gracias por tu tiempo!', '<p>Tu respuesta ha sido registrada. Tu opinión es importante para seguir mejorando.</p>'); }
 async function hydrate() { const { data: { session } } = await supabase.auth.getSession(); state.session = session; state.profile = null; if (session) { const { data } = await supabase.from('profiles').select('role, client_id, clients(first_name)').eq('id', session.user.id).maybeSingle(); state.profile = data; } }
-async function render() { const route = location.hash.replace('#', '').split('?')[0] || 'login'; if (route === 'actualizar-clave') return recoveryView(); if (privateRoutes.has(route)) { if (!state.session) { location.hash = '#login'; return; } if (route === 'admin' && state.profile?.role !== 'admin') { location.hash = '#inicio'; return; } } const view = { login: loginView, inicio: homeView, proyectos: projectsView, encuestas: surveysView, satisfaccion: csatView, admin: adminView }[route] || loginView; await view(); window.scrollTo(0, 0); }
+async function render() { const route = location.hash.replace('#', '').split('?')[0] || 'login'; if (route === 'actualizar-clave') return recoveryView(); if (privateRoutes.has(route)) { if (!state.session) { location.hash = '#login'; return; } if (route.startsWith('admin') && state.profile?.role !== 'admin') { location.hash = '#inicio'; return; } } const view = { login: loginView, inicio: homeView, proyectos: projectsView, encuestas: surveysView, satisfaccion: csatView, admin: adminView, 'admin-clientes': adminClientsView, 'admin-proyectos': adminProjectsView, 'admin-pagos': adminPaymentsView, 'admin-encuestas': adminSurveysView }[route] || loginView; await view(); window.scrollTo(0, 0); }
 function modal(title, content) { document.body.insertAdjacentHTML('beforeend', `<div class="modal-backdrop" onclick="if(event.target===this)this.remove()"><section class="modal"><h2>${title}</h2><div>${content}</div><div class="modal-actions"><button class="button" onclick="this.closest('.modal-backdrop').remove()">Cerrar <span class="circle">×</span></button></div></section></div>`); }
 function copyProjectLink(value, element) { navigator.clipboard?.writeText(decodeURIComponent(value)); element.innerHTML = 'Enlace copiado <span class="circle">✓</span>'; }
 function status(v) { return ({ planificado: 'Planificado', en_curso: 'En curso', finalizado: 'Finalizado', pausado: 'Pausado' })[v] || v; }
