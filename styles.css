@@ -23,6 +23,7 @@ a { color: inherit; text-decoration: none; }
 .header { height: 74px; padding: 0 5.5vw; display: flex; align-items: center; justify-content: space-between; background: var(--white); border-bottom: 1px solid var(--line); }
 .brand img { display: block; width: 158px; height: auto; }
 .header-actions { display: flex; align-items: center; gap: 12px; }
+.account-name { color: var(--muted); font-size: .9rem; }
 .help-link, .user-button { border: 0; background: transparent; color: var(--ink); font-weight: 600; padding: 10px; }
 .user-button { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; background: var(--navy); color: white; padding: 0; }
 .user-button svg { width: 19px; height: 19px; }
@@ -50,6 +51,8 @@ h3 { font-size: 1.22rem; margin-bottom: 6px; }
 .field input, .field select, .field textarea { padding: 14px 15px; border: 1px solid #bfc3bc; border-radius: 10px; background: white; color: var(--ink); outline-color: var(--navy); }
 .field textarea { min-height: 112px; resize: vertical; }
 .form-row { display: flex; justify-content: space-between; align-items: center; font-size: .94rem; }
+.form-message { margin: -3px 0 0; color: #a32929; font-weight: 600; }
+.link-value { overflow-wrap: anywhere; }
 .text-link { color: var(--navy); font-weight: 700; background: none; border: 0; padding: 0; }
 .login-aside { background: var(--mist); padding: clamp(28px, 5vw, 70px); display: grid; gap: 18px; align-content: center; }
 .announcement { padding: clamp(26px, 4vw, 44px); border-radius: 22px; background: var(--white); }
@@ -101,6 +104,7 @@ fieldset.survey-question { min-inline-size: 0; margin: 0; padding: 25px 0; borde
   .header { padding: 0 22px; height: 65px; }
   .brand img { width: 132px; }
   .help-link { display: none; }
+  .account-name { display: none; }
   .page { padding: 28px 20px 55px; }
   .login { grid-template-columns: 1fr; }
   .login-panel { padding: 28px 25px 0; }
