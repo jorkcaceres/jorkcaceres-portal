@@ -95,7 +95,7 @@ fieldset.survey-question { min-inline-size: 0; margin: 0; padding: 25px 0; borde
 .scale { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
 .scale label { display: grid; gap: 7px; padding: 12px 8px; border: 1px solid var(--line); border-radius: 10px; text-align: center; font-size: .82rem; }
 .scale b { font-size: 1.25rem; color: var(--navy); }
-.footer { padding: 19px 5.5vw; border-top: 1px solid var(--line); background: var(--white); color: var(--muted); font-size: .9rem; }
+.footer { padding: 19px 5.5vw; border-top: 1px solid var(--line); background: var(--white); color: var(--muted); font-size: .9rem; text-align: center; }
 .modal-backdrop { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: 20px; background: rgba(0,0,0,.48); }
 .modal { width: min(550px, 100%); padding: 28px; border-radius: 20px; background: white; box-shadow: 0 20px 60px rgba(0,0,0,.25); }
 .modal-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
