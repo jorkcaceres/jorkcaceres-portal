@@ -6,8 +6,8 @@ const projects = [
   { code: 'PR-2026-002', title: 'Dashboard gerencial', service: 'Inteligencia de Negocio', date: '15 may. 2026', status: 'Finalizado', folder: 'https://drive.google.com/', note: 'Proyecto entregado. La carpeta reúne los entregables y documentación final.' }
 ];
 
-const header = () => `<header class="header"><a class="brand" href="#inicio"><img src="${logo}" alt="Jorkcáceres" /></a><div class="header-actions"><a class="help-link" href="https://wa.me/573000000000" target="_blank" rel="noreferrer">¿Necesitas ayuda?</a><button class="user-button" title="Cerrar sesión" onclick="location.hash='#login'">JC</button></div></header>`;
-const footer = () => `<footer class="footer">© 2026 Jorkcáceres. Portal para clientes.</footer>`;
+const header = () => `<header class="header"><a class="brand" href="#inicio"><img src="${logo}" alt="Jorkcáceres" /></a><div class="header-actions"><a class="help-link" href="https://wa.me/573243062809?text=Hola%2C+necesito+ayuda.+Vengo+del+portal+de+Jorkc%C3%A1ceres" target="_blank" rel="noreferrer">¿Necesitas ayuda?</a><button class="user-button" title="Cerrar sesión" aria-label="Cerrar sesión" onclick="location.hash='#login'"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/><path d="M21 19V5a2 2 0 0 0-2-2h-6"/></svg></button></div></header>`;
+const footer = () => `<footer class="footer">© 2026 Jorkcáceres. Portal para clientes. V1.0</footer>`;
 const button = (label, action, style = '') => `<button class="button ${style}" onclick="${action}">${label}<span class="circle">↗</span></button>`;
 
 function loginView() {

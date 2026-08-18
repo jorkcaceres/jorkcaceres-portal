@@ -24,7 +24,8 @@ a { color: inherit; text-decoration: none; }
 .brand img { display: block; width: 158px; height: auto; }
 .header-actions { display: flex; align-items: center; gap: 12px; }
 .help-link, .user-button { border: 0; background: transparent; color: var(--ink); font-weight: 600; padding: 10px; }
-.user-button { width: 38px; height: 38px; border-radius: 50%; background: var(--navy); color: white; padding: 0; }
+.user-button { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; background: var(--navy); color: white; padding: 0; }
+.user-button svg { width: 19px; height: 19px; }
 .page { max-width: 1180px; padding: 42px 5.5vw 72px; margin: auto; }
 .eyebrow { color: var(--navy); font-size: .9rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; margin: 0 0 10px; }
 h1, h2, h3, p { margin-top: 0; }
@@ -50,15 +51,15 @@ h3 { font-size: 1.22rem; margin-bottom: 6px; }
 .field textarea { min-height: 112px; resize: vertical; }
 .form-row { display: flex; justify-content: space-between; align-items: center; font-size: .94rem; }
 .text-link { color: var(--navy); font-weight: 700; background: none; border: 0; padding: 0; }
-.login-aside { background: var(--navy); padding: clamp(28px, 5vw, 70px); display: grid; gap: 18px; align-content: center; }
+.login-aside { background: var(--mist); padding: clamp(28px, 5vw, 70px); display: grid; gap: 18px; align-content: center; }
 .announcement { padding: clamp(26px, 4vw, 44px); border-radius: 22px; background: var(--white); }
-.announcement.coming { background: var(--sky); }
+.announcement.coming { background: var(--white); }
 .announcement p { color: #333; font-size: 1.1rem; line-height: 1.35; }
-.tag { display: inline-block; margin-bottom: 16px; padding: 6px 11px; border-radius: 99px; background: var(--olive); color: #343500; font-size: .82rem; font-weight: 700; }
+.tag { display: inline-block; margin-bottom: 16px; padding: 6px 11px; border-radius: 99px; background: var(--navy); color: var(--white); font-size: .82rem; font-weight: 700; }
 
-.hero { display: grid; grid-template-columns: 1.25fr .75fr; align-items: end; gap: 28px; padding: clamp(28px, 5vw, 58px); border-radius: 28px; background: var(--navy); color: white; overflow: hidden; }
-.hero .eyebrow { color: var(--gold); }
-.hero .lead { color: white; }
+.hero { display: grid; grid-template-columns: 1.25fr .75fr; align-items: end; gap: 28px; padding: clamp(28px, 5vw, 58px); border: 1px solid var(--line); border-radius: 28px; background: var(--white); color: var(--ink); overflow: hidden; }
+.hero .eyebrow { color: var(--navy); }
+.hero .lead { color: #444; }
 .hero-mark { display: grid; place-items: center; min-height: 210px; border-radius: 20px; background: linear-gradient(135deg, var(--sky), #2d67c4); font-size: clamp(7rem, 16vw, 12rem); color: var(--gold); font-weight: 600; }
 .section { margin-top: 58px; }
 .section-heading { display: flex; justify-content: space-between; align-items: end; gap: 16px; margin-bottom: 20px; }
@@ -82,6 +83,7 @@ h3 { font-size: 1.22rem; margin-bottom: 6px; }
 .survey-wrap { max-width: 720px; margin: 0 auto; }
 .survey-card { padding: clamp(24px, 5vw, 52px); border-radius: 24px; background: white; border: 1px solid var(--line); }
 .survey-question { padding: 25px 0; border-top: 1px solid var(--line); }
+.survey-question { margin: 0; min-inline-size: 0; border-right: 0; border-bottom: 0; border-left: 0; }
 .survey-question:first-of-type { border-top: 0; }
 .survey-question legend { margin-bottom: 16px; font-weight: 700; font-size: 1.22rem; }
 .choice-list { display: grid; gap: 10px; }
@@ -94,6 +96,7 @@ h3 { font-size: 1.22rem; margin-bottom: 6px; }
 .modal-backdrop { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: 20px; background: rgba(0,0,0,.48); }
 .modal { width: min(550px, 100%); padding: 28px; border-radius: 20px; background: white; box-shadow: 0 20px 60px rgba(0,0,0,.25); }
 .modal-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
+.form .button { justify-self: start; }
 
 @media (max-width: 760px) {
   .header { padding: 0 22px; height: 65px; }
