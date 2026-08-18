@@ -82,9 +82,8 @@ h3 { font-size: 1.22rem; margin-bottom: 6px; }
 .notice { margin-top: 28px; padding: 18px 20px; border-radius: 14px; background: #eff5ff; color: #183d7e; line-height: 1.4; }
 .survey-wrap { max-width: 720px; margin: 0 auto; }
 .survey-card { padding: clamp(24px, 5vw, 52px); border-radius: 24px; background: white; border: 1px solid var(--line); }
-fieldset.survey-question { min-inline-size: 0; margin: 0; padding: 25px 0; border: 0; border-top: 1px solid var(--line); }
-.survey-question { margin: 0; padding: 25px 0; border: 0; border-top: 1px solid var(--line); }
-.survey-question:first-of-type { border-top: 0; }
+fieldset.survey-question { min-inline-size: 0; margin: 0; padding: 25px 0; border: 0; }
+.survey-question { margin: 0; padding: 25px 0; border: 0; }
 .survey-question legend { margin-bottom: 16px; font-weight: 700; font-size: 1.22rem; }
 .choice-list { display: grid; gap: 10px; }
 .choice { display: flex; align-items: center; gap: 11px; padding: 13px; border: 1px solid var(--line); border-radius: 10px; font-weight: 500; }
