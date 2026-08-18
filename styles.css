@@ -33,7 +33,7 @@ h1 { font-size: clamp(2.25rem, 6vw, 4.2rem); line-height: .96; letter-spacing: -
 h2 { font-size: clamp(1.65rem, 4vw, 2.45rem); letter-spacing: -.04em; line-height: 1; margin-bottom: 12px; }
 h3 { font-size: 1.22rem; margin-bottom: 6px; }
 .lead { max-width: 600px; color: #444; font-size: clamp(1.1rem, 2vw, 1.32rem); line-height: 1.35; }
-.button { display: inline-flex; align-items: center; gap: 12px; border: 0; border-radius: 999px; padding: 11px 14px 11px 20px; font-weight: 700; background: var(--ink); color: white; }
+.button { display: inline-flex; align-items: center; width: fit-content; gap: 12px; border: 0; border-radius: 999px; padding: 11px 14px 11px 20px; font-weight: 700; background: var(--ink); color: white; }
 .button .circle, .arrow-circle { display: grid; place-items: center; width: 29px; height: 29px; border-radius: 50%; background: var(--white); color: var(--ink); font-size: 1.15rem; }
 .button.primary { background: var(--navy); }
 .button.secondary { background: var(--white); color: var(--ink); border: 1px solid var(--line); }
@@ -82,8 +82,8 @@ h3 { font-size: 1.22rem; margin-bottom: 6px; }
 .notice { margin-top: 28px; padding: 18px 20px; border-radius: 14px; background: #eff5ff; color: #183d7e; line-height: 1.4; }
 .survey-wrap { max-width: 720px; margin: 0 auto; }
 .survey-card { padding: clamp(24px, 5vw, 52px); border-radius: 24px; background: white; border: 1px solid var(--line); }
-.survey-question { padding: 25px 0; border-top: 1px solid var(--line); }
-.survey-question { margin: 0; min-inline-size: 0; border-right: 0; border-bottom: 0; border-left: 0; }
+fieldset.survey-question { min-inline-size: 0; margin: 0; padding: 25px 0; border: 0; border-top: 1px solid var(--line); }
+.survey-question { margin: 0; padding: 25px 0; border: 0; border-top: 1px solid var(--line); }
 .survey-question:first-of-type { border-top: 0; }
 .survey-question legend { margin-bottom: 16px; font-weight: 700; font-size: 1.22rem; }
 .choice-list { display: grid; gap: 10px; }

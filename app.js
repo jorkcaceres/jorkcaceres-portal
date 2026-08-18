@@ -17,7 +17,7 @@ function loginView() {
         <form class="form" onsubmit="event.preventDefault(); location.hash='#inicio';"><label class="field">Correo electrónico<input type="email" placeholder="nombre@empresa.com" required></label><label class="field">Contraseña<input type="password" placeholder="••••••••" required></label><div class="form-row"><label><input type="checkbox"> Recordarme</label><button type="button" class="text-link" onclick="showModal('Restablecer contraseña', 'Cuando conectemos el sistema de acceso, podrás solicitar aquí un enlace seguro para restablecer tu contraseña.')">¿Olvidaste tu clave?</button></div>${button('Iniciar sesión', '', 'primary')}</form>
       </div></div>
     <aside class="login-aside"><article class="announcement"><span class="tag">Tu opinión cuenta</span><h2>¿Cómo fue tu experiencia?</h2><p>Tu respuesta me ayuda a mejorar la forma en que trabajo y las soluciones que construyo.</p>${button('Responder encuesta', "location.hash='#satisfaccion'", 'secondary')}</article><article class="announcement coming"><span class="tag">Próximamente</span><h2>Diagnóstico digital</h2><p>Conoce el estado actual de tu empresa y encuentra oportunidades para avanzar.</p><button class="button secondary" disabled>Muy pronto</button></article></aside>
-  </section>`;
+  </section>${footer()}`;
 }
 
 function homeView() {
