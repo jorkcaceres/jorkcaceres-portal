@@ -1,0 +1,49 @@
+const app = document.querySelector('#app');
+const logo = 'assets/jorkcaceres-horizontal-negro.png';
+
+const projects = [
+  { code: 'PR-2026-004', title: 'Presencia digital corporativa', service: 'Presencia Digital', date: '12 ago. 2026', status: 'En curso', folder: 'https://drive.google.com/', note: 'Estamos consolidando los últimos ajustes acordados.' },
+  { code: 'PR-2026-002', title: 'Dashboard gerencial', service: 'Inteligencia de Negocio', date: '15 may. 2026', status: 'Finalizado', folder: 'https://drive.google.com/', note: 'Proyecto entregado. La carpeta reúne los entregables y documentación final.' }
+];
+
+const header = () => `<header class="header"><a class="brand" href="#inicio"><img src="${logo}" alt="Jorkcáceres" /></a><div class="header-actions"><a class="help-link" href="https://wa.me/573000000000" target="_blank" rel="noreferrer">¿Necesitas ayuda?</a><button class="user-button" title="Cerrar sesión" onclick="location.hash='#login'">JC</button></div></header>`;
+const footer = () => `<footer class="footer">© 2026 Jorkcáceres. Portal para clientes.</footer>`;
+const button = (label, action, style = '') => `<button class="button ${style}" onclick="${action}">${label}<span class="circle">↗</span></button>`;
+
+function loginView() {
+  app.innerHTML = `<section class="login">
+    <div class="login-panel"><a class="brand" href="#login"><img src="${logo}" alt="Jorkcáceres" /></a>
+      <div class="login-content"><p class="eyebrow">Portal Jorkcáceres</p><h1>Todo lo importante, en un solo lugar.</h1><p class="lead">Consulta el estado de tus proyectos, entregables, pagos y encuestas.</p>
+        <form class="form" onsubmit="event.preventDefault(); location.hash='#inicio';"><label class="field">Correo electrónico<input type="email" placeholder="nombre@empresa.com" required></label><label class="field">Contraseña<input type="password" placeholder="••••••••" required></label><div class="form-row"><label><input type="checkbox"> Recordarme</label><button type="button" class="text-link" onclick="showModal('Restablecer contraseña', 'Cuando conectemos el sistema de acceso, podrás solicitar aquí un enlace seguro para restablecer tu contraseña.')">¿Olvidaste tu clave?</button></div>${button('Iniciar sesión', '', 'primary')}</form>
+      </div></div>
+    <aside class="login-aside"><article class="announcement"><span class="tag">Tu opinión cuenta</span><h2>¿Cómo fue tu experiencia?</h2><p>Tu respuesta me ayuda a mejorar la forma en que trabajo y las soluciones que construyo.</p>${button('Responder encuesta', "location.hash='#satisfaccion'", 'secondary')}</article><article class="announcement coming"><span class="tag">Próximamente</span><h2>Diagnóstico digital</h2><p>Conoce el estado actual de tu empresa y encuentra oportunidades para avanzar.</p><button class="button secondary" disabled>Muy pronto</button></article></aside>
+  </section>`;
+}
+
+function homeView() {
+  app.innerHTML = `${header()}<main class="page"><section class="hero"><div><p class="eyebrow">Hola, Jorge</p><h1>Tu espacio de trabajo con Jorkcáceres.</h1><p class="lead">Aquí encontrarás información relevante de los proyectos que realizamos juntos y las encuestas que has respondido.</p></div><div class="hero-mark" aria-hidden="true">J</div></section><section class="section"><div class="section-heading"><div><p class="eyebrow">Accesos</p><h2>¿Qué quieres consultar?</h2></div></div><div class="card-grid"><article class="card"><div class="card-icon">▣</div><h3>Proyectos</h3><p>Revisa el estado de tus proyectos, sus entregables, observaciones y pagos.</p>${button('Ver proyectos', "location.hash='#proyectos'")}</article><article class="card"><div class="card-icon">✓</div><h3>Encuestas</h3><p>Consulta las encuestas que has realizado y los resultados disponibles.</p>${button('Ver encuestas', "location.hash='#encuestas'")}</article></div></section></main>${footer()}`;
+}
+
+function projectsView() {
+  const cards = projects.map((p, index) => `<article class="card"><div class="card-top"><div><p class="eyebrow">${p.code}</p><h3>${p.title}</h3></div><span class="status ${p.status === 'En curso' ? 'progress' : ''}">${p.status}</span></div><p>${p.service}</p><div class="item-grid"><span>Fecha<strong>${p.date}</strong></span><span>Servicio<strong>${p.service}</strong></span></div><div class="modal-actions">${button('Información', `projectInfo(${index})`, 'small secondary')}${button('Pagos', `projectPayments(${index})`, 'small')}</div></article>`).join('');
+  app.innerHTML = `${header()}<main class="page"><p class="eyebrow">Portal / Proyectos</p><h1>Proyectos</h1><p class="lead">Consulta la información y trazabilidad de los proyectos que realizamos juntos.</p><nav class="subnav"><button class="active">Todos</button><button>En curso</button><button>Finalizados</button></nav><div class="card-grid">${cards}</div></main>${footer()}`;
+}
+
+function surveysView() {
+  app.innerHTML = `${header()}<main class="page"><p class="eyebrow">Portal / Encuestas</p><h1>Encuestas</h1><p class="lead">Aquí se conserva la trazabilidad de las encuestas que has respondido.</p><section class="section"><div class="card-grid"><article class="card"><div class="card-top"><div><p class="eyebrow">EN-2026-001</p><h3>Encuesta de satisfacción</h3></div><span class="status">Respondida</span></div><p>Completada el 19 ago. 2026</p><div class="item-grid"><span>Satisfacción<strong>5 / 5</strong></span><span>CSAT<strong>Muy satisfecho</strong></span></div>${button('Ver respuesta', "showModal('Encuesta de satisfacción', 'Índice de satisfacción: 5 de 5. Gracias por compartir tu opinión y ayudarnos a mejorar.')", 'small')}</article><article class="card"><div class="card-icon">◌</div><h3>Diagnóstico digital</h3><p>Próximamente podrás acceder al resultado de tu diagnóstico y sus recomendaciones.</p><span class="meta">Aún no disponible</span></article></div></section></main>${footer()}`;
+}
+
+function csatView() {
+  app.innerHTML = `${header()}<main class="page survey-wrap"><p class="eyebrow">Encuesta de satisfacción</p><h1>Tu opinión me ayuda a mejorar.</h1><p class="lead">Responder esta encuesta te tomará menos de un minuto.</p><form class="survey-card form" onsubmit="submitCsat(event)"><label class="field">Correo electrónico <small>Usa el correo con el que accedes al Portal Jorkcáceres o el que has utilizado para comunicarte conmigo.</small><input type="email" placeholder="nombre@empresa.com" required></label><fieldset class="survey-question"><legend>1. En general, ¿qué tan satisfecho estás con el trabajo realizado? *</legend><div class="scale">${[1,2,3,4,5].map(n => `<label><input type="radio" name="satisfaction" value="${n}" required><b>${n}</b>${['Muy insatisfecho','Insatisfecho','Neutral','Satisfecho','Muy satisfecho'][n-1]}</label>`).join('')}</div></fieldset><fieldset class="survey-question"><legend>2. ¿El resultado cumplió con lo que esperabas? *</legend><div class="choice-list">${['Sí, completamente','En gran parte','Parcialmente','No'].map(x => `<label class="choice"><input type="radio" name="expectation" required> ${x}</label>`).join('')}</div></fieldset><fieldset class="survey-question"><legend>3. ¿Volverías a trabajar conmigo? *</legend><div class="choice-list">${['Sí','Tal vez','No'].map(x => `<label class="choice"><input type="radio" name="return" required> ${x}</label>`).join('')}</div></fieldset><label class="field survey-question">4. ¿Hay algo que debería mejorar? <small>Opcional</small><textarea placeholder="Comparte aquí cualquier comentario que consideres importante."></textarea></label>${button('Enviar encuesta', '', 'primary')}</form></main>${footer()}`;
+}
+
+function adminView() { app.innerHTML = `${header()}<main class="page"><p class="eyebrow">Administración</p><h1>Hola, Jorge.</h1><p class="lead">Desde aquí podrás gestionar los clientes, proyectos, pagos, encuestas y mensajes del Portal Jorkcáceres.</p><div class="notice">Esta vista quedará disponible al conectar la autenticación y los datos reales. Solo las cuentas con rol de administrador tendrán acceso.</div></main>${footer()}`; }
+
+function projectInfo(index) { const p = projects[index]; showModal(p.title, `<p><strong>Carpeta compartida</strong></p><p class="meta">${p.folder}</p><p><strong>Observaciones</strong></p><p>${p.note}</p><button class="button small" onclick="navigator.clipboard?.writeText('${p.folder}'); this.innerHTML='Enlace copiado <span class=\"circle\">✓</span>'">Copiar enlace <span class="circle">↗</span></button>`); }
+function projectPayments(index) { const p = projects[index]; showModal(`Pagos · ${p.title}`, `<p>Consulta los pagos confirmados para este proyecto.</p><div class="notice"><strong>PG-2026-0${index + 1}</strong><br>Pago inicial · 50%<br><span class="status">Confirmado</span></div><div class="notice"><strong>PG-2026-0${index + 3}</strong><br>Pago final · 50%<br><span class="status ${index === 0 ? 'progress' : ''}">${index === 0 ? 'Pendiente' : 'Confirmado'}</span></div>`); }
+function showModal(title, content) { document.body.insertAdjacentHTML('beforeend', `<div class="modal-backdrop" onclick="if(event.target===this)this.remove()"><section class="modal"><h2>${title}</h2><div>${content}</div><div class="modal-actions"><button class="button" onclick="this.closest('.modal-backdrop').remove()">Cerrar <span class="circle">×</span></button></div></section></div>`); }
+function submitCsat(event) { event.preventDefault(); showModal('¡Gracias por tu tiempo!', '<p>Tu respuesta ha sido registrada. Tu opinión es importante para seguir mejorando.</p>'); event.target.reset(); }
+
+function render() { const route = location.hash.replace('#', '') || 'login'; ({ login: loginView, inicio: homeView, proyectos: projectsView, encuestas: surveysView, satisfaccion: csatView, admin: adminView }[route] || loginView)(); window.scrollTo(0, 0); }
+window.addEventListener('hashchange', render);
+render();
