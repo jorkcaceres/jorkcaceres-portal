@@ -36,6 +36,7 @@ h3 { font-size: 1.22rem; margin-bottom: 6px; }
 .lead { max-width: 600px; color: #444; font-size: clamp(1.1rem, 2vw, 1.32rem); line-height: 1.35; }
 .button { display: inline-flex; align-items: center; width: fit-content; gap: 12px; border: 0; border-radius: 999px; padding: 11px 14px 11px 20px; font-weight: 700; background: var(--ink); color: white; }
 .button .circle, .arrow-circle { display: grid; place-items: center; width: 29px; height: 29px; border-radius: 50%; background: var(--white); color: var(--ink); font-size: 1.15rem; }
+.button .circle svg { width: 16px; height: 16px; display: block; }
 .button.primary { background: var(--navy); }
 .button.secondary { background: var(--white); color: var(--ink); border: 1px solid var(--line); }
 .button.small { padding: 8px 11px 8px 15px; font-size: .9rem; }
