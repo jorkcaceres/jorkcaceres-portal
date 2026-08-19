@@ -3,12 +3,13 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.0';
 const app = document.querySelector('#app');
 const logo = 'assets/jorkcaceres-horizontal-negro.png';
 const supabase = createClient('https://zfzsigdyycgaqvbauffk.supabase.co', 'sb_publishable_K5khETTDgbkAmAOeiDg2Tw_gKfdxBeq');
-const state = { session: null, profile: null };
+const state = { session: null, profile: null, clientPage: 1, clients: new Map() };
 const privateRoutes = new Set(['inicio', 'proyectos', 'encuestas', 'admin', 'admin-clientes', 'admin-proyectos', 'admin-pagos', 'admin-encuestas']);
 const helpUrl = 'https://wa.me/573243062809?text=Hola%2C+necesito+ayuda.+Vengo+del+portal+de+Jorkc%C3%A1ceres';
 const footer = () => '<footer class="footer">© 2026 Jorkcáceres. Portal para clientes. V1.0</footer>';
 const arrowIcon = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7"/><path d="M8 7h9v9"/></svg>';
 const backIcon = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/><path d="M9 12h12"/></svg>';
+const copyIcon = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
 const btn = (label, action, classes = '', type = 'button') => `<button type="${type}" class="button ${classes}" onclick="${action}">${label}<span class="circle">${arrowIcon}</span></button>`;
 const esc = (value = '') => String(value).replace(/[&<>'"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c]));
 const errorText = (error) => error?.message || 'No fue posible completar la acción.';
@@ -107,10 +108,37 @@ function adminModuleShell(section, title, description, body) {
 
 async function adminClientsView() {
   loading('Clientes');
-  const { data, error } = await supabase.from('clients').select('*').order('created_at', { ascending: false });
+  const pageSize = 10;
+  const from = (state.clientPage - 1) * pageSize;
+  const { data, error, count } = await supabase.from('clients').select('*', { count: 'exact' }).order('created_at', { ascending: false }).range(from, from + pageSize - 1);
   if (error) return dataError('Clientes', error);
-  const body = `<div class="admin-module-actions">${btn('Crear cliente', 'showClientForm()', 'primary')}</div>${data.length ? `<section class="admin-list">${data.map(client => `<article class="admin-list-card"><div><p class="eyebrow">${client.portal_access ? 'Con acceso al portal' : 'Contacto'}</p><h2>${esc(`${client.first_name} ${client.last_name}`)}</h2><p>${esc(client.company_name || 'Sin empresa registrada')} · ${esc(client.email)}</p></div><span class="status ${client.status === 'inactivo' ? 'progress' : ''}">${client.status === 'activo' ? 'Activo' : 'Inactivo'}</span></article>`).join('')}</section>` : '<div class="empty">Aún no hay clientes registrados.</div>'}`;
+  state.clients = new Map(data.map(client => [client.id, client]));
+  const totalPages = Math.max(1, Math.ceil((count || 0) / pageSize));
+  if (state.clientPage > totalPages) { state.clientPage = totalPages; return adminClientsView(); }
+  const list = data.length ? `<section class="admin-list">${data.map(clientCard).join('')}</section>${pagination(totalPages)}` : '<div class="empty">Aún no hay clientes registrados.</div>';
+  const body = `<div class="admin-module-actions">${btn('Crear cliente', 'showClientForm()', 'primary')}</div>${list}`;
   adminModuleShell('clientes', 'Clientes', 'Consulta los contactos y clientes con información registrada en el portal.', body);
+}
+
+function clientCard(client) {
+  const hasAccess = client.portal_access === true;
+  const isActive = client.status !== 'inactivo';
+  const accessLabel = hasAccess ? (isActive ? 'Con acceso al portal' : 'Acceso inactivo') : 'Contacto';
+  const accessAction = hasAccess
+    ? (isActive ? btn('Inactivar usuario', `confirmClientAction('${client.id}', 'deactivate_access')`, 'small secondary') : btn('Reactivar usuario', `confirmClientAction('${client.id}', 'reactivate_access')`, 'small'))
+    : btn('Conceder acceso', `confirmClientAction('${client.id}', 'grant_access')`, 'small');
+  const passwordAction = hasAccess ? btn('Restablecer contraseña', `confirmClientAction('${client.id}', 'reset_password')`, 'small secondary') : '';
+  return `<article class="admin-list-card client-list-card"><div><p class="eyebrow">${accessLabel}</p><h2>${esc(`${client.first_name} ${client.last_name}`)}</h2><p>${esc(client.company_name || 'Sin empresa registrada')} · ${esc(client.email)}${client.phone ? ` · ${esc(client.phone)}` : ''}</p><div class="client-actions">${btn('Modificar datos', `showClientEditForm('${client.id}')`, 'small secondary')}${accessAction}${passwordAction}</div></div><span class="status ${isActive ? '' : 'progress'}">${isActive ? 'Activo' : 'Inactivo'}</span></article>`;
+}
+
+function pagination(totalPages) {
+  if (totalPages <= 1) return '';
+  return `<nav class="pagination" aria-label="Paginación de clientes"><button class="button small secondary" onclick="changeClientPage(${state.clientPage - 1})" ${state.clientPage === 1 ? 'disabled' : ''}>Anterior</button><span>Página ${state.clientPage} de ${totalPages}</span><button class="button small secondary" onclick="changeClientPage(${state.clientPage + 1})" ${state.clientPage === totalPages ? 'disabled' : ''}>Siguiente</button></nav>`;
+}
+
+function changeClientPage(page) {
+  state.clientPage = Math.max(1, page);
+  adminClientsView();
 }
 
 function showClientForm() {
@@ -120,6 +148,25 @@ function showClientForm() {
 function togglePortalAccess(enabled) {
   const help = document.querySelector('#portal-access-help');
   if (help) help.textContent = enabled ? 'Se generará una contraseña temporal única para compartirla con el cliente.' : 'Se registrará como contacto; no podrá iniciar sesión.';
+}
+
+function showClientEditForm(id) {
+  const client = state.clients.get(id);
+  if (!client) return modal('No fue posible abrir el cliente', '<p>Actualiza la vista e inténtalo nuevamente.</p>');
+  modal('Modificar datos', `<p class="modal-lead">Actualiza la información de contacto. Si cambias el correo de una cuenta con acceso, también se actualizará para iniciar sesión.</p><form class="form client-form" onsubmit="updatePortalClient(event, '${client.id}')"><div class="form-columns"><label class="field">Nombre<input name="first_name" value="${esc(client.first_name)}" autocomplete="given-name" required></label><label class="field">Apellido<input name="last_name" value="${esc(client.last_name)}" autocomplete="family-name" required></label></div><label class="field">Correo electrónico<input name="email" type="email" value="${esc(client.email)}" autocomplete="email" required></label><label class="field">Teléfono<input name="phone" type="tel" value="${esc(client.phone || '')}" autocomplete="tel"></label><label class="field">Empresa<input name="company_name" value="${esc(client.company_name || '')}" autocomplete="organization"></label><div class="modal-actions"><button type="button" class="button secondary" onclick="closeTopModal()">Cancelar</button>${btn('Guardar cambios', '', 'primary', 'submit')}</div></form>`, false);
+}
+
+function confirmClientAction(id, action) {
+  const client = state.clients.get(id);
+  if (!client) return modal('No fue posible abrir el cliente', '<p>Actualiza la vista e inténtalo nuevamente.</p>');
+  const labels = {
+    grant_access: ['Conceder acceso', 'Se creará una contraseña temporal para que puedas compartirla con el cliente.'],
+    reset_password: ['Restablecer contraseña', 'Se reemplazará la contraseña actual por una temporal nueva.'],
+    deactivate_access: ['Inactivar usuario', 'El cliente no podrá volver a iniciar sesión hasta que reactives su acceso.'],
+    reactivate_access: ['Reactivar usuario', 'El cliente podrá volver a ingresar con su contraseña actual.'],
+  };
+  const [title, message] = labels[action];
+  modal(title, `<p>${message}</p><div class="modal-actions"><button type="button" class="button secondary" onclick="closeTopModal()">Cancelar</button>${btn(title, `runClientAction('${id}', '${action}')`, 'primary')}</div>`, false);
 }
 
 async function adminProjectsView() {
@@ -153,11 +200,67 @@ async function signIn(event) { event.preventDefault(); const email = document.qu
 async function signOut() { await supabase.auth.signOut(); state.session = null; state.profile = null; location.hash = '#login'; }
 async function requestPasswordReset() { const email = document.querySelector('#login-email')?.value.trim(); if (!email) return modal('Ingresa tu correo', '<p>Escribe primero tu correo electrónico en el inicio de sesión.</p>'); const { error } = await supabase.auth.resetPasswordForEmail(email); modal(error ? 'No fue posible enviar el enlace' : 'Revisa tu correo', error ? `<p>${esc(errorText(error))}</p>` : '<p>Si existe una cuenta con ese correo, recibirás un enlace seguro para crear una nueva contraseña.</p>'); }
 async function updatePassword(event) { event.preventDefault(); const password = document.querySelector('#new-password').value; if (password !== document.querySelector('#confirm-password').value) return modal('Las contraseñas no coinciden', '<p>Verifica que ambas contraseñas sean iguales.</p>'); const { error } = await supabase.auth.updateUser({ password }); if (error) return modal('No fue posible guardar la contraseña', `<p>${esc(errorText(error))}</p>`); await hydrate(); location.hash = state.profile?.role === 'admin' ? '#admin' : '#inicio'; }
-async function createPortalClient(event) { event.preventDefault(); const form = new FormData(event.target); const submit = event.target.querySelector('[type="submit"]'); submit.disabled = true; submit.textContent = 'Creando…'; const { data, error } = await supabase.functions.invoke('create-client-access', { body: { first_name: form.get('first_name'), last_name: form.get('last_name'), email: form.get('email'), phone: form.get('phone'), company_name: form.get('company_name'), portal_access: form.get('portal_access') === 'on' } }); if (error || data?.error) { submit.disabled = false; submit.textContent = 'Crear cliente'; return modal('No fue posible crear el cliente', `<p>${esc(data?.error || errorText(error))}</p>`); } event.target.closest('.modal-backdrop')?.remove(); await adminClientsView(); if (data.temporaryPassword) { const password = String(data.temporaryPassword); modal('Acceso creado', `<p>El cliente ya puede ingresar al portal. Comparte esta contraseña temporal por el canal que prefieras.</p><div class="credential"><span>Contraseña temporal</span><strong>${esc(password)}</strong></div><p class="credential-note">Guárdala o compártela ahora: no se volverá a mostrar.</p><div class="modal-actions"><button class="button primary" onclick="copyTemporaryPassword('${encodeURIComponent(password)}', this)">Copiar contraseña <span class="circle">${arrowIcon}</span></button><button class="button secondary" onclick="this.closest('.modal-backdrop').remove()">Listo</button></div>`); } else { modal('Cliente creado', '<p>El contacto fue registrado sin acceso al portal.</p>'); } }
+async function invokeClientAdmin(body) {
+  const { data, error } = await supabase.functions.invoke('create-client-access', { body });
+  if (error || data?.error) throw new Error(data?.error || errorText(error));
+  return data;
+}
+
+async function createPortalClient(event) {
+  event.preventDefault();
+  const form = new FormData(event.target);
+  const submit = event.target.querySelector('[type="submit"]');
+  submit.disabled = true; submit.textContent = 'Creando…';
+  try {
+    const data = await invokeClientAdmin({ action: 'create', first_name: form.get('first_name'), last_name: form.get('last_name'), email: form.get('email'), phone: form.get('phone'), company_name: form.get('company_name'), portal_access: form.get('portal_access') === 'on' });
+    closeTopModal();
+    await adminClientsView();
+    if (data.temporaryPassword) showTemporaryPassword(data.temporaryPassword, 'Acceso creado', 'El cliente ya puede ingresar al portal. Comparte esta contraseña temporal por el canal que prefieras.');
+    else modal('Cliente creado', '<p>El contacto fue registrado sin acceso al portal.</p>');
+  } catch (error) {
+    submit.disabled = false; submit.textContent = 'Crear cliente';
+    modal('No fue posible crear el cliente', `<p>${esc(errorText(error))}</p>`);
+  }
+}
+
+async function updatePortalClient(event, id) {
+  event.preventDefault();
+  const form = new FormData(event.target);
+  const submit = event.target.querySelector('[type="submit"]');
+  submit.disabled = true; submit.textContent = 'Guardando…';
+  try {
+    await invokeClientAdmin({ action: 'update', client_id: id, first_name: form.get('first_name'), last_name: form.get('last_name'), email: form.get('email'), phone: form.get('phone'), company_name: form.get('company_name') });
+    closeTopModal();
+    await adminClientsView();
+  } catch (error) {
+    submit.disabled = false; submit.textContent = 'Guardar cambios';
+    modal('No fue posible actualizar el cliente', `<p>${esc(errorText(error))}</p>`);
+  }
+}
+
+async function runClientAction(id, action) {
+  const button = document.querySelector('.modal .button.primary');
+  if (button) { button.disabled = true; button.textContent = 'Procesando…'; }
+  try {
+    const data = await invokeClientAdmin({ action, client_id: id });
+    closeTopModal();
+    await adminClientsView();
+    if (data.temporaryPassword) showTemporaryPassword(data.temporaryPassword, action === 'reset_password' ? 'Contraseña restablecida' : 'Acceso creado', 'Comparte esta contraseña temporal por el canal que prefieras.');
+  } catch (error) {
+    if (button) { button.disabled = false; button.textContent = 'Intentar nuevamente'; }
+    modal('No fue posible completar la acción', `<p>${esc(errorText(error))}</p>`);
+  }
+}
+
+function showTemporaryPassword(password, title, message) {
+  const encodedPassword = encodeURIComponent(String(password));
+  modal(title, `<p>${esc(message)}</p><div class="credential"><span>Contraseña temporal</span><strong>${esc(password)}</strong></div><p class="credential-note">Guárdala o compártela ahora: no se volverá a mostrar.</p><div class="modal-actions"><button class="button primary" onclick="copyTemporaryPassword('${encodedPassword}', this)">Copiar contraseña <span class="circle">${copyIcon}</span></button><button class="button secondary" onclick="closeTopModal()">Listo</button></div>`, false);
+}
 async function submitCsat(event) { event.preventDefault(); const form = new FormData(event.target); const { error } = await supabase.from('csat_responses').insert({ email: form.get('email').trim().toLowerCase(), satisfaction: Number(form.get('satisfaction')), expectation: form.get('expectation'), return_intent: form.get('return'), improvement: form.get('improvement').trim() || null }); if (error) return modal('No fue posible enviar la encuesta', `<p>${esc(errorText(error))}</p>`); event.target.reset(); modal('¡Gracias por tu tiempo!', '<p>Tu respuesta ha sido registrada. Tu opinión es importante para seguir mejorando.</p>'); }
 async function hydrate() { const { data: { session } } = await supabase.auth.getSession(); state.session = session; state.profile = null; if (session) { const { data } = await supabase.from('profiles').select('role, client_id, clients(first_name)').eq('id', session.user.id).maybeSingle(); state.profile = data; } }
 async function render() { const route = location.hash.replace('#', '').split('?')[0] || 'login'; if (route === 'actualizar-clave') return recoveryView(); if (privateRoutes.has(route)) { if (!state.session) { location.hash = '#login'; return; } if (route.startsWith('admin') && state.profile?.role !== 'admin') { location.hash = '#inicio'; return; } } const view = { login: loginView, inicio: homeView, proyectos: projectsView, encuestas: surveysView, satisfaccion: csatView, admin: adminView, 'admin-clientes': adminClientsView, 'admin-proyectos': adminProjectsView, 'admin-pagos': adminPaymentsView, 'admin-encuestas': adminSurveysView }[route] || loginView; await view(); window.scrollTo(0, 0); }
 function modal(title, content, showClose = true) { document.body.insertAdjacentHTML('beforeend', `<div class="modal-backdrop" onclick="if(event.target===this)this.remove()"><section class="modal"><h2>${title}</h2><div>${content}</div>${showClose ? '<div class="modal-actions"><button class="button" onclick="this.closest(\'.modal-backdrop\').remove()">Cerrar <span class="circle">×</span></button></div>' : ''}</section></div>`); }
+function closeTopModal() { document.querySelector('.modal-backdrop:last-of-type')?.remove(); }
 function copyProjectLink(value, element) { navigator.clipboard?.writeText(decodeURIComponent(value)); element.innerHTML = 'Enlace copiado <span class="circle">✓</span>'; }
 function copyTemporaryPassword(value, element) { navigator.clipboard?.writeText(decodeURIComponent(value)); element.innerHTML = 'Contraseña copiada <span class="circle">✓</span>'; }
 function status(v) { return ({ planificado: 'Planificado', en_curso: 'En curso', finalizado: 'Finalizado', pausado: 'Pausado' })[v] || v; }
@@ -166,7 +269,7 @@ function returnLabel(v) { return ({ si: 'Sí', tal_vez: 'Tal vez', no: 'No' })[v
 function date(v) { return v ? new Intl.DateTimeFormat('es-CO', { dateStyle: 'medium' }).format(new Date(`${v.slice(0, 10)}T12:00:00`)) : 'Sin fecha'; }
 function money(v) { return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v); }
 
-Object.assign(window, { signIn, signOut, requestPasswordReset, updatePassword, submitCsat, projectInfo, projectPayments, surveyResponse, copyProjectLink, showClientForm, togglePortalAccess, createPortalClient, copyTemporaryPassword });
+Object.assign(window, { signIn, signOut, requestPasswordReset, updatePassword, submitCsat, projectInfo, projectPayments, surveyResponse, copyProjectLink, showClientForm, togglePortalAccess, createPortalClient, updatePortalClient, showClientEditForm, confirmClientAction, runClientAction, changeClientPage, closeTopModal, copyTemporaryPassword });
 supabase.auth.onAuthStateChange((event) => { if (event === 'PASSWORD_RECOVERY') location.hash = '#actualizar-clave'; if (event === 'SIGNED_OUT') { state.session = null; state.profile = null; } });
 window.addEventListener('hashchange', render);
 await hydrate();
