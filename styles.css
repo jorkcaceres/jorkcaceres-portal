@@ -121,7 +121,8 @@ fieldset.survey-question { min-inline-size: 0; margin: 0; padding: 25px 0; borde
 .breadcrumb-separator { color: var(--muted) !important; text-decoration: none !important; }
 .modal-backdrop { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: 20px; overflow-x: hidden; background: rgba(0,0,0,.48); }
 .modal { width: min(550px, 100%); min-width: 0; max-height: calc(100dvh - 40px); padding: 24px; overflow-x: hidden; overflow-y: auto; border-radius: 20px; background: white; box-shadow: 0 20px 60px rgba(0,0,0,.25); overscroll-behavior: contain; }
-.modal .form, .modal .field, .modal input, .modal select, .modal textarea { min-width: 0; max-width: 100%; }
+.modal .form, .modal .field, .modal .form-columns, .modal input, .modal select, .modal textarea { min-width: 0; max-width: 100%; }
+.modal input[type="date"] { display: block; inline-size: 100%; min-inline-size: 0; box-sizing: border-box; }
 .modal-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
 .modal-lead { color: var(--muted); line-height: 1.4; }
 .client-form { gap: 12px; margin-top: 20px; }
@@ -214,7 +215,8 @@ fieldset.survey-question { min-inline-size: 0; margin: 0; padding: 25px 0; borde
   .scale label { padding: 9px 3px; font-size: .7rem; }
   .form-columns { grid-template-columns: 1fr; }
   .modal-backdrop { align-items: center; padding: 14px; overflow-y: auto; }
-  .modal { width: calc(100vw - 28px); max-height: calc(100dvh - 28px); padding: 22px; }
+  .modal { width: calc(100vw - 28px); max-width: calc(100vw - 28px); max-height: calc(100dvh - 28px); padding: 22px; }
+  .modal input[type="date"] { width: 100%; max-width: 100%; }
   .portal-image-preview { display: block; width: min(100%, 250px); height: 220px; min-height: 0; margin-inline: auto; object-fit: cover; object-position: center; }
   .activity-indicator { left: 14px; bottom: 14px; }
   .payment-detail-card { grid-template-areas: "code status" "summary summary" "action action"; gap: 8px; }
