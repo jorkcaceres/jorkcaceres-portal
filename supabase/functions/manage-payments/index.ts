@@ -55,11 +55,19 @@ export default {
     const amount = amountValue(body.amount)
     const paymentDate = dateValue(body.payment_date)
     const status = textValue(body.status)
-    const validTypes = ['inicial', 'final']
     const validStatuses = ['pendiente', 'confirmado']
 
-    if (!projectId || !validTypes.includes(paymentType) || amount === null || !paymentDate || !validStatuses.includes(status)) {
+    if (!projectId || !paymentType || amount === null || !paymentDate || !validStatuses.includes(status)) {
       return json({ error: 'Completa proyecto, tipo de pago, monto, fecha y estado.' }, 400)
+    }
+
+    const { data: configuredType } = await ctx.supabaseAdmin
+      .from('portal_payment_types')
+      .select('code,name,active')
+      .eq('code', paymentType)
+      .maybeSingle()
+    if (!configuredType || (action === 'create' && !configuredType.active)) {
+      return json({ error: 'El tipo de pago seleccionado no está disponible.' }, 400)
     }
 
     const { data: project } = await ctx.supabaseAdmin.from('projects').select('id').eq('id', projectId).maybeSingle()
@@ -68,7 +76,7 @@ export default {
     const values = {
       project_id: projectId,
       payment_type: paymentType,
-      concept: paymentType === 'inicial' ? 'Pago inicial' : 'Pago final',
+      concept: configuredType.name,
       amount,
       payment_date: paymentDate,
       status,
