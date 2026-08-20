@@ -87,6 +87,14 @@ h3 { font-size: 1.22rem; margin-bottom: 6px; }
 .subnav button { padding: 8px 13px; border: 1px solid var(--line); border-radius: 999px; background: white; font-weight: 600; }
 .subnav button.active { color: white; background: var(--navy); border-color: var(--navy); }
 .notice { margin-top: 28px; padding: 18px 20px; border-radius: 14px; background: #eff5ff; color: #183d7e; line-height: 1.4; }
+.payment-detail-list { display: grid; gap: 12px; margin-top: 18px; }
+.payment-detail-card { display: grid; gap: 8px; padding: 18px; border: 1px solid var(--line); border-radius: 16px; background: var(--white); }
+.payment-detail-card h3 { margin: 0; font-size: 1.1rem; }
+.payment-detail-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.payment-code { color: var(--navy); font-size: .84rem; font-weight: 800; }
+.payment-amount { font-size: 1.35rem; line-height: 1.1; }
+.payment-date { margin: 0; color: var(--muted); font-size: .92rem; }
+.payment-detail-card .button { justify-self: start; margin-top: 6px; }
 .survey-wrap { max-width: 720px; margin: 0 auto; }
 .survey-card { padding: clamp(24px, 5vw, 52px); border-radius: 24px; background: white; border: 1px solid var(--line); }
 fieldset.survey-question { min-inline-size: 0; margin: 0; padding: 25px 0; border: 0; }
