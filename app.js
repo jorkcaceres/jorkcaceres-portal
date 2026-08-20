@@ -3,7 +3,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.0';
 const app = document.querySelector('#app');
 const logo = 'assets/jorkcaceres-horizontal-negro.png';
 const supabase = createClient('https://zfzsigdyycgaqvbauffk.supabase.co', 'sb_publishable_K5khETTDgbkAmAOeiDg2Tw_gKfdxBeq');
-const state = { session: null, profile: null, clientPage: 1, projectPage: 1, clients: new Map(), projects: new Map(), portalSettings: null };
+const state = { session: null, profile: null, clientPage: 1, projectPage: 1, clients: new Map(), projects: new Map(), portalSettings: null, services: [] };
 const privateRoutes = new Set(['inicio', 'proyectos', 'encuestas', 'admin', 'admin-clientes', 'admin-proyectos', 'admin-pagos', 'admin-encuestas', 'admin-portal']);
 const helpUrl = 'https://wa.me/573243062809?text=Hola%2C+necesito+ayuda.+Vengo+del+portal+de+Jorkc%C3%A1ceres';
 const footer = () => '<footer class="footer">© 2026 Jorkcáceres. Portal para clientes. V1.0</footer>';
@@ -179,11 +179,46 @@ function togglePortalAccess(enabled) {
 
 async function adminPortalView() {
   loading('Portal');
-  const settings = await loadPortalSettings(true) || {};
+  const [loadedSettings, services] = await Promise.all([loadPortalSettings(true), loadPortalServices(true)]);
+  const settings = loadedSettings || {};
   const desktopPreview = settings.hero_desktop_url ? `<img class="portal-image-preview" src="${esc(settings.hero_desktop_url)}" alt="Vista previa para escritorio">` : '<div class="image-empty">Aún no hay imagen de escritorio.</div>';
   const mobilePreview = settings.hero_mobile_url ? `<img class="portal-image-preview" src="${esc(settings.hero_mobile_url)}" alt="Vista previa para móvil">` : '<div class="image-empty">Aún no hay imagen móvil.</div>';
-  const body = `<section class="settings-card"><h2>Imagen principal</h2><p>Esta imagen aparece al ingresar al portal. Puedes actualizar cada versión cuando lo necesites.</p><form class="form portal-settings-form" onsubmit="savePortalAppearance(event)"><div class="image-settings-grid"><label class="field">Imagen escritorio <small>Proporción recomendada: 4:5 vertical (por ejemplo, 1600 × 2000 px) · JPG, PNG o WebP.</small><input name="hero_desktop" type="file" accept="image/jpeg,image/png,image/webp">${desktopPreview}</label><label class="field">Imagen móvil <small>Proporción recomendada: 4:5 vertical (por ejemplo, 1080 × 1350 px) · JPG, PNG o WebP.</small><input name="hero_mobile" type="file" accept="image/jpeg,image/png,image/webp">${mobilePreview}</label></div>${btn('Guardar imagen', '', 'primary', 'submit')}</form></section>`;
+  const serviceList = services.length ? `<div class="service-list">${services.map(service => `<article class="service-item"><div><strong>${esc(service.name)}</strong><span class="status ${service.active ? '' : 'progress'}">${service.active ? 'Activo' : 'Inactivo'}</span></div>${btn(service.active ? 'Inactivar' : 'Activar', `setPortalServiceStatus('${service.id}', ${!service.active})`, 'small secondary')}</article>`).join('')}</div>` : '<div class="empty">Aún no hay servicios configurados.</div>';
+  const body = `<div class="settings-accordions"><details class="settings-card" open><summary><span><strong>Imagen principal</strong><small>Personaliza la imagen de bienvenida del portal.</small></span></summary><div class="accordion-content"><form class="form portal-settings-form" onsubmit="savePortalAppearance(event)"><div class="image-settings-grid"><label class="field">Imagen escritorio <small>Proporción recomendada: 4:5 vertical (por ejemplo, 1600 × 2000 px) · JPG, PNG o WebP.</small><input name="hero_desktop" type="file" accept="image/jpeg,image/png,image/webp">${desktopPreview}</label><label class="field">Imagen móvil <small>Proporción recomendada: 4:5 vertical (por ejemplo, 1080 × 1350 px) · JPG, PNG o WebP.</small><input name="hero_mobile" type="file" accept="image/jpeg,image/png,image/webp">${mobilePreview}</label></div>${btn('Guardar imagen', '', 'primary', 'submit')}</form></div></details><details class="settings-card"><summary><span><strong>Servicios disponibles</strong><small>Define los servicios que podrás asociar a los proyectos.</small></span></summary><div class="accordion-content"><form class="service-form" onsubmit="addPortalService(event)"><label class="field">Nuevo servicio<input name="service_name" placeholder="Nombre del servicio" required></label>${btn('Agregar servicio', '', 'primary', 'submit')}</form>${serviceList}</div></details></div>`;
   adminModuleShell('portal', 'Personalizar portal', 'Administra la imagen principal que ven los clientes al ingresar.', body);
+}
+
+async function loadPortalServices(force = false) {
+  if (state.services.length && !force) return state.services;
+  const { data, error } = await supabase.from('portal_services').select('id,name,active').order('name', { ascending: true });
+  if (error) throw error;
+  state.services = data || [];
+  return state.services;
+}
+
+async function addPortalService(event) {
+  event.preventDefault();
+  const form = new FormData(event.target);
+  const name = String(form.get('service_name') || '').trim();
+  const submit = event.target.querySelector('[type="submit"]');
+  if (!name) return;
+  submit.disabled = true; submit.textContent = 'Agregando…';
+  try {
+    const { error } = await supabase.from('portal_services').insert({ name });
+    if (error) throw error;
+    state.services = [];
+    await adminPortalView();
+  } catch (error) {
+    submit.disabled = false; submit.textContent = 'Agregar servicio';
+    modal('No fue posible agregar el servicio', `<p>${esc(error.code === '23505' ? 'Ese servicio ya está registrado.' : errorText(error))}</p>`);
+  }
+}
+
+async function setPortalServiceStatus(id, active) {
+  const { error } = await supabase.from('portal_services').update({ active }).eq('id', id);
+  if (error) return modal('No fue posible actualizar el servicio', `<p>${esc(errorText(error))}</p>`);
+  state.services = [];
+  await adminPortalView();
 }
 
 async function uploadPortalImage(file, variant) {
@@ -277,10 +312,17 @@ async function projectClientOptions(selectedId = '') {
   return data.map(client => `<option value="${client.id}" ${client.id === selectedId ? 'selected' : ''}>${esc(`${client.first_name} ${client.last_name}${client.company_name ? ` · ${client.company_name}` : ''}`)}</option>`).join('');
 }
 
+async function projectServiceOptions(selectedName = '') {
+  const services = await loadPortalServices(true);
+  const available = services.filter(service => service.active || service.name === selectedName);
+  if (!available.length) throw new Error('Primero configura al menos un servicio activo en Administración → Portal.');
+  return available.map(service => `<option value="${esc(service.name)}" ${service.name === selectedName ? 'selected' : ''}>${esc(service.name)}${service.active ? '' : ' (inactivo)'}</option>`).join('');
+}
+
 async function showProjectForm() {
   try {
-    const clients = await projectClientOptions();
-    modal('Crear proyecto', `<p class="modal-lead">Registra el proyecto y relaciónalo con el cliente correspondiente.</p><form class="form client-form" onsubmit="createPortalProject(event)"><label class="field">Cliente<select name="client_id" required><option value="">Selecciona un cliente</option>${clients}</select></label><div class="form-columns"><label class="field">Código<input name="code" placeholder="PRJ-001" required></label><label class="field">Estado<select name="status" required><option value="planificado">Planificado</option><option value="en_curso">En curso</option><option value="pausado">Pausado</option><option value="finalizado">Finalizado</option></select></label></div><label class="field">Título del proyecto<input name="title" required></label><label class="field">Servicio<input name="service" placeholder="Presencia Digital" required></label><div class="form-columns"><label class="field">Fecha de inicio<input name="start_date" type="date" required></label><label class="field">Fecha de finalización<input name="end_date" type="date"></label></div><label class="field">Carpeta compartida<input name="shared_folder_url" type="url" placeholder="https://..."></label><label class="field">Observaciones<textarea name="observations" placeholder="Información relevante para el cliente."></textarea></label><div class="modal-actions"><button type="button" class="button secondary" onclick="closeTopModal()">Cancelar</button>${btn('Crear proyecto', '', 'primary', 'submit')}</div></form>`, false);
+    const [clients, services] = await Promise.all([projectClientOptions(), projectServiceOptions()]);
+    modal('Crear proyecto', `<p class="modal-lead">Registra el proyecto y relaciónalo con el cliente correspondiente.</p><form class="form client-form" onsubmit="createPortalProject(event)"><label class="field">Cliente<select name="client_id" required><option value="">Selecciona un cliente</option>${clients}</select></label><div class="form-columns"><div class="field"><span>Código</span><div class="readonly-field">Se asignará automáticamente al crear el proyecto.</div></div><label class="field">Estado<select name="status" required><option value="planificado">Planificado</option><option value="en_curso">En curso</option><option value="pausado">Pausado</option><option value="finalizado">Finalizado</option></select></label></div><label class="field">Título del proyecto<input name="title" required></label><label class="field">Servicio<select name="service" required><option value="">Selecciona un servicio</option>${services}</select></label><div class="form-columns"><label class="field">Fecha de inicio<input name="start_date" type="date" required></label><label class="field">Fecha de finalización<input name="end_date" type="date"></label></div><label class="field">Carpeta compartida<input name="shared_folder_url" type="url" placeholder="https://..."></label><label class="field">Observaciones<textarea name="observations" placeholder="Información relevante para el cliente."></textarea></label><div class="modal-actions"><button type="button" class="button secondary" onclick="closeTopModal()">Cancelar</button>${btn('Crear proyecto', '', 'primary', 'submit')}</div></form>`, false);
   } catch (error) { modal('No fue posible abrir el formulario', `<p>${esc(errorText(error))}</p>`); }
 }
 
@@ -288,9 +330,9 @@ async function showProjectEditForm(id) {
   const project = state.projects.get(id);
   if (!project) return modal('No fue posible abrir el proyecto', '<p>Actualiza la vista e inténtalo nuevamente.</p>');
   try {
-    const clients = await projectClientOptions(project.client_id);
+    const [clients, services] = await Promise.all([projectClientOptions(project.client_id), projectServiceOptions(project.service)]);
     const startDate = project.start_date || project.project_date || '';
-    modal('Modificar proyecto', `<p class="modal-lead">Actualiza la información del proyecto. Los cambios se reflejarán en la vista del cliente.</p><form class="form client-form" onsubmit="updatePortalProject(event, '${project.id}')"><label class="field">Cliente<select name="client_id" required>${clients}</select></label><div class="form-columns"><label class="field">Código<input name="code" value="${esc(project.code)}" required></label><label class="field">Estado<select name="status" required><option value="planificado" ${project.status === 'planificado' ? 'selected' : ''}>Planificado</option><option value="en_curso" ${project.status === 'en_curso' ? 'selected' : ''}>En curso</option><option value="pausado" ${project.status === 'pausado' ? 'selected' : ''}>Pausado</option><option value="finalizado" ${project.status === 'finalizado' ? 'selected' : ''}>Finalizado</option></select></label></div><label class="field">Título del proyecto<input name="title" value="${esc(project.title)}" required></label><label class="field">Servicio<input name="service" value="${esc(project.service)}" required></label><div class="form-columns"><label class="field">Fecha de inicio<input name="start_date" type="date" value="${esc(startDate)}" required></label><label class="field">Fecha de finalización<input name="end_date" type="date" value="${esc(project.end_date || '')}"></label></div><label class="field">Carpeta compartida<input name="shared_folder_url" type="url" value="${esc(project.shared_folder_url || '')}"></label><label class="field">Observaciones<textarea name="observations">${esc(project.observations || '')}</textarea></label><div class="modal-actions"><button type="button" class="button secondary" onclick="closeTopModal()">Cancelar</button>${btn('Guardar cambios', '', 'primary', 'submit')}</div></form>`, false);
+    modal('Modificar proyecto', `<p class="modal-lead">Actualiza la información del proyecto. Los cambios se reflejarán en la vista del cliente.</p><form class="form client-form" onsubmit="updatePortalProject(event, '${project.id}')"><label class="field">Cliente<select name="client_id" required>${clients}</select></label><div class="form-columns"><div class="field"><span>Código</span><div class="readonly-field">${esc(project.code)}</div></div><label class="field">Estado<select name="status" required><option value="planificado" ${project.status === 'planificado' ? 'selected' : ''}>Planificado</option><option value="en_curso" ${project.status === 'en_curso' ? 'selected' : ''}>En curso</option><option value="pausado" ${project.status === 'pausado' ? 'selected' : ''}>Pausado</option><option value="finalizado" ${project.status === 'finalizado' ? 'selected' : ''}>Finalizado</option></select></label></div><label class="field">Título del proyecto<input name="title" value="${esc(project.title)}" required></label><label class="field">Servicio<select name="service" required>${services}</select></label><div class="form-columns"><label class="field">Fecha de inicio<input name="start_date" type="date" value="${esc(startDate)}" required></label><label class="field">Fecha de finalización<input name="end_date" type="date" value="${esc(project.end_date || '')}"></label></div><label class="field">Carpeta compartida<input name="shared_folder_url" type="url" value="${esc(project.shared_folder_url || '')}"></label><label class="field">Observaciones<textarea name="observations">${esc(project.observations || '')}</textarea></label><div class="modal-actions"><button type="button" class="button secondary" onclick="closeTopModal()">Cancelar</button>${btn('Guardar cambios', '', 'primary', 'submit')}</div></form>`, false);
   } catch (error) { modal('No fue posible abrir el formulario', `<p>${esc(errorText(error))}</p>`); }
 }
 
@@ -335,7 +377,7 @@ async function createPortalProject(event) {
   const submit = event.target.querySelector('[type="submit"]');
   submit.disabled = true; submit.textContent = 'Creando…';
   try {
-    await invokeProjectAdmin({ action: 'create', client_id: form.get('client_id'), code: form.get('code'), title: form.get('title'), service: form.get('service'), status: form.get('status'), start_date: form.get('start_date'), end_date: form.get('end_date'), shared_folder_url: form.get('shared_folder_url'), observations: form.get('observations') });
+    await invokeProjectAdmin({ action: 'create', client_id: form.get('client_id'), title: form.get('title'), service: form.get('service'), status: form.get('status'), start_date: form.get('start_date'), end_date: form.get('end_date'), shared_folder_url: form.get('shared_folder_url'), observations: form.get('observations') });
     closeTopModal();
     state.projectPage = 1;
     await adminProjectsView();
@@ -352,7 +394,7 @@ async function updatePortalProject(event, id) {
   const submit = event.target.querySelector('[type="submit"]');
   submit.disabled = true; submit.textContent = 'Guardando…';
   try {
-    await invokeProjectAdmin({ action: 'update', project_id: id, client_id: form.get('client_id'), code: form.get('code'), title: form.get('title'), service: form.get('service'), status: form.get('status'), start_date: form.get('start_date'), end_date: form.get('end_date'), shared_folder_url: form.get('shared_folder_url'), observations: form.get('observations') });
+    await invokeProjectAdmin({ action: 'update', project_id: id, client_id: form.get('client_id'), title: form.get('title'), service: form.get('service'), status: form.get('status'), start_date: form.get('start_date'), end_date: form.get('end_date'), shared_folder_url: form.get('shared_folder_url'), observations: form.get('observations') });
     closeTopModal();
     await adminProjectsView();
   } catch (error) {
@@ -424,7 +466,7 @@ function returnLabel(v) { return ({ si: 'Sí', tal_vez: 'Tal vez', no: 'No' })[v
 function date(v) { return v ? new Intl.DateTimeFormat('es-CO', { dateStyle: 'medium' }).format(new Date(`${v.slice(0, 10)}T12:00:00`)) : 'Sin fecha'; }
 function money(v) { return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v); }
 
-Object.assign(window, { signIn, signOut, requestPasswordReset, updatePassword, submitCsat, projectInfo, projectPayments, surveyResponse, copyProjectLink, showClientForm, togglePortalAccess, createPortalClient, updatePortalClient, showClientEditForm, confirmClientAction, runClientAction, changeClientPage, showProjectForm, showProjectEditForm, createPortalProject, updatePortalProject, changeProjectPage, closeTopModal, copyTemporaryPassword, savePortalAppearance });
+Object.assign(window, { signIn, signOut, requestPasswordReset, updatePassword, submitCsat, projectInfo, projectPayments, surveyResponse, copyProjectLink, showClientForm, togglePortalAccess, createPortalClient, updatePortalClient, showClientEditForm, confirmClientAction, runClientAction, changeClientPage, showProjectForm, showProjectEditForm, createPortalProject, updatePortalProject, changeProjectPage, closeTopModal, copyTemporaryPassword, savePortalAppearance, addPortalService, setPortalServiceStatus });
 supabase.auth.onAuthStateChange((event) => { if (event === 'PASSWORD_RECOVERY') location.hash = '#actualizar-clave'; if (event === 'SIGNED_OUT') { state.session = null; state.profile = null; } });
 window.addEventListener('hashchange', render);
 await hydrate();
