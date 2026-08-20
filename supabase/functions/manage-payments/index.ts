@@ -43,8 +43,9 @@ export default {
       const paymentId = textValue(body.payment_id)
       const receiptPath = textValue(body.receipt_path)
       if (!paymentId || receiptPath !== `${paymentId}/receipt.png`) return json({ error: 'La referencia del comprobante no es válida.' }, 400)
-      const { data: payment } = await ctx.supabaseAdmin.from('project_payments').select('id').eq('id', paymentId).maybeSingle()
+      const { data: payment } = await ctx.supabaseAdmin.from('project_payments').select('id,status').eq('id', paymentId).maybeSingle()
       if (!payment) return json({ error: 'El pago no existe.' }, 404)
+      if (payment.status !== 'confirmado') return json({ error: 'Solo puedes adjuntar un comprobante cuando el pago está confirmado.' }, 400)
       const { error } = await ctx.supabaseAdmin.from('project_payments').update({ receipt_path: receiptPath }).eq('id', paymentId)
       if (error) return json({ error: 'No fue posible vincular el comprobante.' }, 400)
       return json({ ok: true })
@@ -57,8 +58,8 @@ export default {
     const status = textValue(body.status)
     const validStatuses = ['pendiente', 'confirmado']
 
-    if (!projectId || !paymentType || amount === null || !paymentDate || !validStatuses.includes(status)) {
-      return json({ error: 'Completa proyecto, tipo de pago, monto, fecha y estado.' }, 400)
+    if (!projectId || !paymentType || amount === null || !validStatuses.includes(status) || (status === 'confirmado' && !paymentDate)) {
+      return json({ error: 'Completa proyecto, tipo de pago, monto y estado. La fecha se requiere al confirmar el pago.' }, 400)
     }
 
     const { data: configuredType } = await ctx.supabaseAdmin
@@ -78,7 +79,8 @@ export default {
       payment_type: paymentType,
       concept: configuredType.name,
       amount,
-      payment_date: paymentDate,
+      payment_date: status === 'confirmado' ? paymentDate : null,
+      receipt_path: status === 'confirmado' ? undefined : null,
       status,
     }
 
