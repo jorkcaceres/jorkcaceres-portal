@@ -14,6 +14,7 @@
 }
 
 * { box-sizing: border-box; }
+html, body { overflow-x: hidden; }
 body { margin: 0; min-width: 320px; }
 button, input, select, textarea { font: inherit; }
 button { cursor: pointer; }
@@ -49,7 +50,7 @@ h3 { font-size: 1.22rem; margin-bottom: 6px; }
 .login-content h1 { font-size: clamp(2.5rem, 5vw, 4.2rem); }
 .form { display: grid; gap: 16px; margin-top: 34px; }
 .field { display: grid; gap: 7px; font-weight: 600; }
-.field input, .field select, .field textarea { padding: 14px 15px; border: 1px solid #bfc3bc; border-radius: 10px; background: white; color: var(--ink); outline-color: var(--navy); }
+.field input, .field select, .field textarea { width: 100%; min-width: 0; max-width: 100%; padding: 14px 15px; border: 1px solid #bfc3bc; border-radius: 10px; background: white; color: var(--ink); outline-color: var(--navy); }
 .field textarea { min-height: 112px; resize: vertical; }
 .form-row { display: flex; justify-content: space-between; align-items: center; font-size: .94rem; }
 .form-message { margin: -3px 0 0; color: #a32929; font-weight: 600; }
@@ -118,8 +119,9 @@ fieldset.survey-question { min-inline-size: 0; margin: 0; padding: 25px 0; borde
 .breadcrumbs a { text-decoration: underline; text-underline-offset: 3px; }
 .breadcrumbs span[aria-current="page"] { color: var(--ink); }
 .breadcrumb-separator { color: var(--muted) !important; text-decoration: none !important; }
-.modal-backdrop { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: 20px; background: rgba(0,0,0,.48); }
-.modal { width: min(550px, 100%); max-height: calc(100dvh - 40px); padding: 24px; overflow-y: auto; border-radius: 20px; background: white; box-shadow: 0 20px 60px rgba(0,0,0,.25); overscroll-behavior: contain; }
+.modal-backdrop { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: 20px; overflow-x: hidden; background: rgba(0,0,0,.48); }
+.modal { width: min(550px, 100%); min-width: 0; max-height: calc(100dvh - 40px); padding: 24px; overflow-x: hidden; overflow-y: auto; border-radius: 20px; background: white; box-shadow: 0 20px 60px rgba(0,0,0,.25); overscroll-behavior: contain; }
+.modal .form, .modal .field, .modal input, .modal select, .modal textarea { min-width: 0; max-width: 100%; }
 .modal-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
 .modal-lead { color: var(--muted); line-height: 1.4; }
 .client-form { gap: 12px; margin-top: 20px; }
@@ -211,7 +213,9 @@ fieldset.survey-question { min-inline-size: 0; margin: 0; padding: 25px 0; borde
   .scale { grid-template-columns: repeat(5, minmax(0,1fr)); gap: 5px; }
   .scale label { padding: 9px 3px; font-size: .7rem; }
   .form-columns { grid-template-columns: 1fr; }
-  .modal { max-height: calc(100dvh - 28px); padding: 22px; }
+  .modal-backdrop { align-items: center; padding: 14px; overflow-y: auto; }
+  .modal { width: calc(100vw - 28px); max-height: calc(100dvh - 28px); padding: 22px; }
+  .portal-image-preview { display: block; width: min(100%, 250px); height: 220px; min-height: 0; margin-inline: auto; object-fit: cover; object-position: center; }
   .activity-indicator { left: 14px; bottom: 14px; }
   .payment-detail-card { grid-template-areas: "code status" "summary summary" "action action"; gap: 8px; }
   .payment-detail-card .button { justify-self: start; margin-top: 4px; }
