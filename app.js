@@ -85,7 +85,8 @@ async function projectPayments(id) {
   await loadPortalPaymentTypes();
   const { data, error } = await supabase.from('project_payments').select('*').eq('project_id', id).order('payment_date', { ascending: true });
   if (error) return modal('No fue posible abrir los pagos', `<p>${esc(errorText(error))}</p>`);
-  modal('Pagos del proyecto', data.length ? data.map(p => `<div class="notice"><strong>${esc(p.code)}</strong><br>${esc(paymentType(p.payment_type))}${p.amount ? ` · ${money(p.amount)}` : ''}<br><span class="status ${p.status === 'pendiente' ? 'progress' : ''}">${p.status === 'confirmado' ? 'Confirmado' : 'Pendiente'}</span>${p.receipt_path ? `<br><button class="text-link" onclick="openPaymentReceipt('${esc(p.receipt_path)}')">Ver comprobante</button>` : ''}</div>`).join('') : '<p>No hay pagos registrados para este proyecto.</p>');
+  const cards = data.map(payment => `<article class="payment-detail-card"><div class="payment-detail-header"><span class="payment-code">${esc(payment.code)}</span><span class="status ${payment.status === 'pendiente' ? 'progress' : ''}">${payment.status === 'confirmado' ? 'Confirmado' : 'Pendiente'}</span></div><h3>${esc(paymentType(payment.payment_type))}</h3><strong class="payment-amount">${payment.amount ? money(payment.amount) : 'Monto por definir'}</strong><p class="payment-date">${payment.status === 'confirmado' ? `Recibido el ${date(payment.payment_date)}` : 'Pendiente de pago'}</p>${payment.receipt_path ? btn('Ver comprobante', `openPaymentReceipt('${esc(payment.receipt_path)}')`, 'small secondary') : ''}</article>`).join('');
+  modal('Pagos del proyecto', data.length ? `<div class="payment-detail-list">${cards}</div>` : '<p>No hay pagos registrados para este proyecto.</p>');
 }
 
 async function surveysView() {
@@ -537,10 +538,15 @@ async function updatePortalPayment(event, id) {
 }
 
 async function openPaymentReceipt(path) {
-  if (/^https?:\/\//i.test(path)) return window.open(path, '_blank', 'noopener');
+  const viewer = window.open('', '_blank');
+  if (!viewer) return modal('No fue posible abrir el comprobante', '<p>Permite las ventanas emergentes para este portal e inténtalo nuevamente.</p>');
+  viewer.opener = null;
+  viewer.document.title = 'Comprobante de pago';
+  viewer.document.body.innerHTML = '<p style="font-family:Inter,Arial,sans-serif;padding:24px">Abriendo comprobante…</p>';
+  if (/^https?:\/\//i.test(path)) return viewer.location.replace(path);
   const { data, error } = await supabase.storage.from('payment-receipts').createSignedUrl(path, 60);
-  if (error || !data?.signedUrl) return modal('No fue posible abrir el comprobante', `<p>${esc(errorText(error))}</p>`);
-  window.open(data.signedUrl, '_blank', 'noopener');
+  if (error || !data?.signedUrl) { viewer.close(); return modal('No fue posible abrir el comprobante', `<p>${esc(errorText(error))}</p>`); }
+  viewer.location.replace(data.signedUrl);
 }
 
 async function createPortalProject(event) {
