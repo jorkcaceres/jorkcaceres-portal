@@ -52,6 +52,10 @@ h3 { font-size: 1.22rem; margin-bottom: 6px; }
 .field { display: grid; gap: 7px; font-weight: 600; }
 .field input, .field select, .field textarea { width: 100%; min-width: 0; max-width: 100%; padding: 14px 15px; border: 1px solid #bfc3bc; border-radius: 10px; background: white; color: var(--ink); outline-color: var(--navy); }
 .field textarea { min-height: 112px; resize: vertical; }
+/* WebKit iOS calcula mal los controles de fecha al combinar ancho completo y padding. */
+@supports (-webkit-touch-callout: none) {
+  .field input[type="date"] { height: 48px; padding: 0; text-indent: 15px; }
+}
 .form-row { display: flex; justify-content: space-between; align-items: center; font-size: .94rem; }
 .form-message { margin: -3px 0 0; color: #a32929; font-weight: 600; }
 .turnstile-widget { min-height: 65px; margin: 4px 0; }
