@@ -7,6 +7,7 @@ const state = { session: null, profile: null, clientPage: 1, projectPage: 1, pay
 const privateRoutes = new Set(['inicio', 'proyectos', 'encuestas', 'admin', 'admin-clientes', 'admin-proyectos', 'admin-pagos', 'admin-encuestas', 'admin-portal']);
 const helpUrl = 'https://wa.me/573243062809?text=Hola%2C+necesito+ayuda.+Vengo+del+portal+de+Jorkc%C3%A1ceres';
 const footer = () => '<footer class="footer">© 2026 Jorkcáceres. Portal para clientes. V1.0</footer>';
+let activityCount = 0;
 const arrowIcon = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7"/><path d="M8 7h9v9"/></svg>';
 const backIcon = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/><path d="M9 12h12"/></svg>';
 const copyIcon = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
@@ -65,6 +66,8 @@ async function loadPortalSettings(force = false) {
 
 function loading(title) { app.innerHTML = `${header()}<main class="page"><p class="eyebrow">Portal</p><h1>${title}</h1><p class="lead">Cargando tu información…</p></main>${footer()}`; }
 function dataError(title, error) { app.innerHTML = `${header()}<main class="page"><p class="eyebrow">Portal</p><h1>${title}</h1><div class="notice">No fue posible cargar la información: ${esc(errorText(error))}</div></main>${footer()}`; }
+function startActivity(message = 'Cargando…') { activityCount += 1; let indicator = document.querySelector('#activity-indicator'); if (!indicator) { document.body.insertAdjacentHTML('beforeend', '<div id="activity-indicator" class="activity-indicator" role="status" aria-live="polite"><span></span><strong></strong></div>'); indicator = document.querySelector('#activity-indicator'); } indicator.querySelector('strong').textContent = message; }
+function finishActivity() { activityCount = Math.max(0, activityCount - 1); if (activityCount === 0) document.querySelector('#activity-indicator')?.remove(); }
 
 async function projectsView() {
   loading('Proyectos');
@@ -472,26 +475,23 @@ async function adminSurveysView() {
   adminModuleShell('encuestas', 'Encuestas', 'Consulta las respuestas, métricas y asociaciones con clientes.', completeMetrics + list);
 }
 
-async function signIn(event) { event.preventDefault(); const email = document.querySelector('#login-email').value.trim(); const password = document.querySelector('#login-password').value; const { error } = await supabase.auth.signInWithPassword({ email, password }); if (error) return loginView('Revisa tu correo y contraseña e inténtalo nuevamente.'); await hydrate(); location.hash = state.session?.user?.user_metadata?.force_password_change ? '#actualizar-clave' : state.profile?.role === 'admin' ? '#admin' : '#inicio'; }
+async function signIn(event) { event.preventDefault(); const email = document.querySelector('#login-email').value.trim(); const password = document.querySelector('#login-password').value; const submit = event.target.querySelector('[type="submit"]'); startActivity('Ingresando…'); if (submit) { submit.disabled = true; submit.textContent = 'Ingresando…'; } try { const { error } = await supabase.auth.signInWithPassword({ email, password }); if (error) return loginView('Revisa tu correo y contraseña e inténtalo nuevamente.'); await hydrate(); location.hash = state.session?.user?.user_metadata?.force_password_change ? '#actualizar-clave' : state.profile?.role === 'admin' ? '#admin' : '#inicio'; } finally { finishActivity(); } }
 async function signOut() { await supabase.auth.signOut(); state.session = null; state.profile = null; location.hash = '#login'; }
-async function requestPasswordReset() { const email = document.querySelector('#login-email')?.value.trim(); if (!email) return modal('Ingresa tu correo', '<p>Escribe primero tu correo electrónico en el inicio de sesión.</p>'); const { error } = await supabase.auth.resetPasswordForEmail(email); modal(error ? 'No fue posible enviar el enlace' : 'Revisa tu correo', error ? `<p>${esc(errorText(error))}</p>` : '<p>Si existe una cuenta con ese correo, recibirás un enlace seguro para crear una nueva contraseña.</p>'); }
-async function updatePassword(event) { event.preventDefault(); const password = document.querySelector('#new-password').value; if (password !== document.querySelector('#confirm-password').value) return modal('Las contraseñas no coinciden', '<p>Verifica que ambas contraseñas sean iguales.</p>'); const { error } = await supabase.auth.updateUser({ password, data: { force_password_change: false } }); if (error) return modal('No fue posible guardar la contraseña', `<p>${esc(errorText(error))}</p>`); await hydrate(); location.hash = state.profile?.role === 'admin' ? '#admin' : '#inicio'; }
+async function requestPasswordReset() { const email = document.querySelector('#login-email')?.value.trim(); if (!email) return modal('Ingresa tu correo', '<p>Escribe primero tu correo electrónico en el inicio de sesión.</p>'); startActivity('Enviando enlace…'); try { const { error } = await supabase.auth.resetPasswordForEmail(email); modal(error ? 'No fue posible enviar el enlace' : 'Revisa tu correo', error ? `<p>${esc(errorText(error))}</p>` : '<p>Si existe una cuenta con ese correo, recibirás un enlace seguro para crear una nueva contraseña.</p>'); } finally { finishActivity(); } }
+async function updatePassword(event) { event.preventDefault(); const password = document.querySelector('#new-password').value; if (password !== document.querySelector('#confirm-password').value) return modal('Las contraseñas no coinciden', '<p>Verifica que ambas contraseñas sean iguales.</p>'); startActivity('Guardando contraseña…'); try { const { error } = await supabase.auth.updateUser({ password, data: { force_password_change: false } }); if (error) return modal('No fue posible guardar la contraseña', `<p>${esc(errorText(error))}</p>`); await hydrate(); location.hash = state.profile?.role === 'admin' ? '#admin' : '#inicio'; } finally { finishActivity(); } }
 async function invokeClientAdmin(body) {
-  const { data, error } = await supabase.functions.invoke('create-client-access', { body });
-  if (error || data?.error) throw new Error(data?.error || errorText(error));
-  return data;
+  startActivity('Guardando cambios…');
+  try { const { data, error } = await supabase.functions.invoke('create-client-access', { body }); if (error || data?.error) throw new Error(data?.error || errorText(error)); return data; } finally { finishActivity(); }
 }
 
 async function invokeProjectAdmin(body) {
-  const { data, error } = await supabase.functions.invoke('manage-projects', { body });
-  if (error || data?.error) throw new Error(data?.error || errorText(error));
-  return data;
+  startActivity('Guardando cambios…');
+  try { const { data, error } = await supabase.functions.invoke('manage-projects', { body }); if (error || data?.error) throw new Error(data?.error || errorText(error)); return data; } finally { finishActivity(); }
 }
 
 async function invokePaymentAdmin(body) {
-  const { data, error } = await supabase.functions.invoke('manage-payments', { body });
-  if (error || data?.error) throw new Error(data?.error || errorText(error));
-  return data;
+  startActivity('Guardando cambios…');
+  try { const { data, error } = await supabase.functions.invoke('manage-payments', { body }); if (error || data?.error) throw new Error(data?.error || errorText(error)); return data; } finally { finishActivity(); }
 }
 
 async function uploadPaymentReceipt(paymentId, file) {
@@ -633,7 +633,7 @@ function showTemporaryPassword(password, title, message) {
   const encodedPassword = encodeURIComponent(String(password));
   modal(title, `<p>${esc(message)}</p><div class="credential"><span>Contraseña temporal</span><strong>${esc(password)}</strong></div><p class="credential-note">Guárdala o compártela ahora: no se volverá a mostrar.</p><div class="modal-actions"><button class="button primary" onclick="copyTemporaryPassword('${encodedPassword}', this)">Copiar contraseña <span class="circle">${copyIcon}</span></button><button class="button secondary" onclick="closeTopModal()">Listo</button></div>`, false);
 }
-async function submitCsat(event) { event.preventDefault(); const form = new FormData(event.target); const { error } = await supabase.from('csat_responses').insert({ email: form.get('email').trim().toLowerCase(), satisfaction: Number(form.get('satisfaction')), expectation: form.get('expectation'), return_intent: form.get('return'), improvement: form.get('improvement').trim() || null }); if (error) return modal('No fue posible enviar la encuesta', `<p>${esc(errorText(error))}</p>`); event.target.reset(); modal('¡Gracias por tu tiempo!', '<p>Tu respuesta ha sido registrada. Tu opinión es importante para seguir mejorando.</p>'); }
+async function submitCsat(event) { event.preventDefault(); const form = new FormData(event.target); startActivity('Enviando encuesta…'); try { const { error } = await supabase.from('csat_responses').insert({ email: form.get('email').trim().toLowerCase(), satisfaction: Number(form.get('satisfaction')), expectation: form.get('expectation'), return_intent: form.get('return'), improvement: form.get('improvement').trim() || null }); if (error) return modal('No fue posible enviar la encuesta', `<p>${esc(errorText(error))}</p>`); event.target.reset(); modal('¡Gracias por tu tiempo!', '<p>Tu respuesta ha sido registrada. Tu opinión es importante para seguir mejorando.</p>'); } finally { finishActivity(); } }
 async function hydrate() { const { data: { session } } = await supabase.auth.getSession(); state.session = session; state.profile = null; if (session) { const { data } = await supabase.from('profiles').select('role, client_id').eq('id', session.user.id).maybeSingle(); state.profile = data; } }
 async function render() { const route = location.hash.replace('#', '').split('?')[0] || 'login'; if (route === 'actualizar-clave') return recoveryView(); if (state.session?.user?.user_metadata?.force_password_change) { location.hash = '#actualizar-clave'; return; } if (privateRoutes.has(route)) { if (!state.session) { location.hash = '#login'; return; } if (route.startsWith('admin') && state.profile?.role !== 'admin') { location.hash = '#inicio'; return; } } const view = { login: loginView, inicio: homeView, proyectos: projectsView, encuestas: surveysView, satisfaccion: csatView, admin: adminView, 'admin-clientes': adminClientsView, 'admin-proyectos': adminProjectsView, 'admin-pagos': adminPaymentsView, 'admin-encuestas': adminSurveysView, 'admin-portal': adminPortalView }[route] || loginView; await view(); window.scrollTo(0, 0); }
 function modal(title, content, showClose = true) { document.body.insertAdjacentHTML('beforeend', `<div class="modal-backdrop" onclick="if(event.target===this)this.remove()"><section class="modal"><h2>${title}</h2><div>${content}</div>${showClose ? '<div class="modal-actions"><button class="button" onclick="this.closest(\'.modal-backdrop\').remove()">Cerrar <span class="circle">×</span></button></div>' : ''}</section></div>`); }
