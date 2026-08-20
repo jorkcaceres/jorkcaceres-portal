@@ -110,6 +110,9 @@ fieldset.survey-question { min-inline-size: 0; margin: 0; padding: 25px 0; borde
 .scale label { display: grid; gap: 7px; padding: 12px 8px; border: 1px solid var(--line); border-radius: 10px; text-align: center; font-size: .82rem; }
 .scale b { font-size: 1.25rem; color: var(--navy); }
 .footer { padding: 19px 5.5vw; border-top: 1px solid var(--line); background: var(--white); color: var(--muted); font-size: .9rem; text-align: center; }
+.activity-indicator { position: fixed; z-index: 30; left: 20px; bottom: 20px; display: inline-flex; align-items: center; gap: 9px; padding: 11px 14px; border-radius: 999px; background: var(--navy); color: var(--white); box-shadow: 0 10px 24px rgba(13,55,140,.25); font-size: .9rem; }
+.activity-indicator span { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,.45); border-top-color: var(--white); border-radius: 50%; animation: activity-spin .7s linear infinite; }
+@keyframes activity-spin { to { transform: rotate(360deg); } }
 .breadcrumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 13px; color: var(--navy); font-size: .9rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
 .breadcrumbs a { text-decoration: underline; text-underline-offset: 3px; }
 .breadcrumbs span[aria-current="page"] { color: var(--ink); }
@@ -208,6 +211,7 @@ fieldset.survey-question { min-inline-size: 0; margin: 0; padding: 25px 0; borde
   .scale label { padding: 9px 3px; font-size: .7rem; }
   .form-columns { grid-template-columns: 1fr; }
   .modal { max-height: calc(100dvh - 28px); padding: 22px; }
+  .activity-indicator { left: 14px; bottom: 14px; }
   .payment-detail-card { grid-template-areas: "code status" "summary summary" "action action"; gap: 8px; }
   .payment-detail-card .button { justify-self: start; margin-top: 4px; }
 }
