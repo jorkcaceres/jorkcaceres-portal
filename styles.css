@@ -126,7 +126,7 @@ fieldset.survey-question { min-inline-size: 0; margin: 0; padding: 25px 0; borde
 .modal-backdrop { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: 20px; overflow-x: hidden; background: rgba(0,0,0,.48); }
 .modal { width: min(550px, 100%); min-width: 0; max-height: calc(100dvh - 40px); padding: 24px; overflow-x: hidden; overflow-y: auto; border-radius: 20px; background: white; box-shadow: 0 20px 60px rgba(0,0,0,.25); overscroll-behavior: contain; }
 .modal .form, .modal .field, .modal .form-columns, .modal input, .modal select, .modal textarea { min-width: 0; max-width: 100%; }
-.modal input[type="date"] { display: block; inline-size: 100%; min-inline-size: 0; box-sizing: border-box; }
+.modal input[type="date"] { inline-size: 100%; min-inline-size: 0; box-sizing: border-box; }
 .modal-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
 .modal-lead { color: var(--muted); line-height: 1.4; }
 .client-form { gap: 12px; margin-top: 20px; }
@@ -223,6 +223,7 @@ fieldset.survey-question { min-inline-size: 0; margin: 0; padding: 25px 0; borde
   .modal input[type="date"] { width: 100%; max-width: 100%; }
   .modal [data-payment-date] { width: 100%; max-width: 100%; overflow: hidden; }
   .modal [data-payment-date] input[type="date"] { max-inline-size: calc(100% - 1px); }
+  .modal .field input[type="date"] { display: inline-block; vertical-align: middle; }
   .portal-image-preview { display: block; width: min(100%, 250px); height: 220px; min-height: 0; margin-inline: auto; object-fit: cover; object-position: center; }
   .activity-indicator { left: 14px; bottom: 14px; }
   .payment-detail-card { grid-template-areas: "code status" "summary summary" "action action"; gap: 8px; }
