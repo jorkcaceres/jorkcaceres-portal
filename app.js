@@ -393,7 +393,7 @@ async function adminPaymentsView() {
 
 function paymentCard(payment) {
   const clientName = payment.projects?.clients ? `${payment.projects.clients.first_name} ${payment.projects.clients.last_name}` : 'Cliente no disponible';
-  return `<article class="admin-list-card"><div><p class="eyebrow">${esc(payment.code)}</p><h2>${paymentType(payment.payment_type)}</h2><p>${esc(payment.projects?.title || 'Proyecto no disponible')} · ${esc(clientName)} · ${payment.amount ? money(payment.amount) : 'Sin monto registrado'} · ${date(payment.payment_date)}</p><div class="client-actions">${btn('Modificar pago', `showPaymentEditForm('${payment.id}')`, 'small secondary')}${payment.receipt_path ? btn('Ver comprobante', `openPaymentReceipt('${esc(payment.receipt_path)}')`, 'small secondary') : ''}</div></div><span class="status ${payment.status === 'pendiente' ? 'progress' : ''}">${payment.status === 'confirmado' ? 'Confirmado' : 'Pendiente'}</span></article>`;
+  return `<article class="admin-list-card"><div><p class="eyebrow">${esc(payment.code)}</p><h2>${paymentType(payment.payment_type)}</h2><p>${esc(payment.projects?.title || 'Proyecto no disponible')} · ${esc(clientName)} · ${payment.amount ? money(payment.amount) : 'Sin monto registrado'} · ${payment.status === 'pendiente' ? 'Pendiente de pago' : date(payment.payment_date)}</p><div class="client-actions">${btn('Modificar pago', `showPaymentEditForm('${payment.id}')`, 'small secondary')}${payment.receipt_path ? btn('Ver comprobante', `openPaymentReceipt('${esc(payment.receipt_path)}')`, 'small secondary') : ''}</div></div><span class="status ${payment.status === 'pendiente' ? 'progress' : ''}">${payment.status === 'confirmado' ? 'Confirmado' : 'Pendiente'}</span></article>`;
 }
 
 function paymentPagination(totalPages) {
@@ -415,9 +415,26 @@ async function paymentProjectOptions(selectedId = '') {
 
 function paymentFields(payment = {}) {
   const type = payment.payment_type || 'inicial';
+  const pending = payment.status === 'pendiente';
   const availableTypes = state.paymentTypes.filter(item => item.active || item.code === type);
   const typeOptions = availableTypes.map(item => `<option value="${esc(item.code)}" ${item.code === type ? 'selected' : ''}>${esc(item.name)}${item.active ? '' : ' (inactivo)'}</option>`).join('');
-  return `<label class="field">Proyecto<select name="project_id" required data-project-options></select></label><div class="form-columns"><label class="field">Tipo de pago<select name="payment_type" required>${typeOptions || '<option value="">No hay tipos de pago activos</option>'}</select></label><label class="field">Estado<select name="status" required><option value="pendiente" ${payment.status === 'pendiente' ? 'selected' : ''}>Pendiente</option><option value="confirmado" ${payment.status === 'confirmado' ? 'selected' : ''}>Confirmado</option></select></label></div><div class="form-columns"><label class="field">Monto (COP)<input name="amount" type="number" min="0" step="1" value="${esc(payment.amount ?? '')}" required></label><label class="field">Fecha de pago<input name="payment_date" type="date" value="${esc(payment.payment_date || '')}" required></label></div><label class="field">Comprobante PNG <small>Opcional · máximo 5 MB.</small><input name="receipt" type="file" accept="image/png"></label>`;
+  return `<label class="field">Proyecto<select name="project_id" required data-project-options></select></label><div class="form-columns"><label class="field">Tipo de pago<select name="payment_type" required>${typeOptions || '<option value="">No hay tipos de pago activos</option>'}</select></label><label class="field">Estado<select name="status" required onchange="togglePaymentDetails(this.value)"><option value="pendiente" ${pending ? 'selected' : ''}>Pendiente</option><option value="confirmado" ${payment.status === 'confirmado' ? 'selected' : ''}>Confirmado</option></select></label></div><div class="form-columns"><label class="field">Monto (COP)<input name="amount" type="number" min="0" step="1" value="${esc(payment.amount ?? '')}" required></label><label class="field" data-payment-date ${pending ? 'hidden' : ''}>Fecha de pago<input name="payment_date" type="date" value="${esc(payment.payment_date || '')}" ${pending ? 'disabled' : 'required'}></label></div><label class="field" data-payment-receipt ${pending ? 'hidden' : ''}>Comprobante PNG <small>Opcional · máximo 5 MB.</small><input name="receipt" type="file" accept="image/png" ${pending ? 'disabled' : ''}></label><p class="field-note" data-payment-pending-note ${pending ? '' : 'hidden'}>La fecha y el comprobante se registran cuando confirmes que el pago fue recibido.</p>`;
+}
+
+function togglePaymentDetails(status) {
+  const form = document.querySelector('.modal form');
+  if (!form) return;
+  const pending = status === 'pendiente';
+  const dateField = form.querySelector('[data-payment-date]');
+  const dateInput = form.querySelector('[name="payment_date"]');
+  const receiptField = form.querySelector('[data-payment-receipt]');
+  const receiptInput = form.querySelector('[name="receipt"]');
+  const note = form.querySelector('[data-payment-pending-note]');
+  if (dateField) dateField.hidden = pending;
+  if (receiptField) receiptField.hidden = pending;
+  if (note) note.hidden = !pending;
+  if (dateInput) { dateInput.disabled = pending; dateInput.required = !pending; if (pending) dateInput.value = ''; }
+  if (receiptInput) { receiptInput.disabled = pending; if (pending) receiptInput.value = ''; }
 }
 
 async function showPaymentForm() {
@@ -620,7 +637,7 @@ function returnLabel(v) { return ({ si: 'Sí', tal_vez: 'Tal vez', no: 'No' })[v
 function date(v) { return v ? new Intl.DateTimeFormat('es-CO', { dateStyle: 'medium' }).format(new Date(`${v.slice(0, 10)}T12:00:00`)) : 'Sin fecha'; }
 function money(v) { return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v); }
 
-Object.assign(window, { signIn, signOut, requestPasswordReset, updatePassword, submitCsat, projectInfo, projectPayments, surveyResponse, copyProjectLink, showClientForm, togglePortalAccess, createPortalClient, updatePortalClient, showClientEditForm, confirmClientAction, runClientAction, changeClientPage, showProjectForm, showProjectEditForm, createPortalProject, updatePortalProject, changeProjectPage, showPaymentForm, showPaymentEditForm, createPortalPayment, updatePortalPayment, changePaymentPage, openPaymentReceipt, closeTopModal, copyTemporaryPassword, savePortalAppearance, addPortalService, setPortalServiceStatus, addPortalPaymentType, setPortalPaymentTypeStatus });
+Object.assign(window, { signIn, signOut, requestPasswordReset, updatePassword, submitCsat, projectInfo, projectPayments, surveyResponse, copyProjectLink, showClientForm, togglePortalAccess, createPortalClient, updatePortalClient, showClientEditForm, confirmClientAction, runClientAction, changeClientPage, showProjectForm, showProjectEditForm, createPortalProject, updatePortalProject, changeProjectPage, showPaymentForm, showPaymentEditForm, createPortalPayment, updatePortalPayment, changePaymentPage, openPaymentReceipt, closeTopModal, copyTemporaryPassword, savePortalAppearance, addPortalService, setPortalServiceStatus, addPortalPaymentType, setPortalPaymentTypeStatus, togglePaymentDetails });
 supabase.auth.onAuthStateChange((event) => { if (event === 'PASSWORD_RECOVERY') location.hash = '#actualizar-clave'; if (event === 'SIGNED_OUT') { state.session = null; state.profile = null; } });
 window.addEventListener('hashchange', render);
 await hydrate();
