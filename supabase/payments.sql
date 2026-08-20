@@ -1,5 +1,6 @@
 -- Gestión y trazabilidad segura de pagos del Portal Jorkcáceres.
 alter table public.project_payments add column if not exists payment_type text;
+alter table public.project_payments alter column payment_date drop not null;
 
 -- Tipos de pago administrables desde Administración → Personalizar portal.
 create table if not exists public.portal_payment_types (
@@ -38,6 +39,12 @@ set payment_type = case
   else 'inicial'
 end
 where payment_type is null;
+
+-- Un pago pendiente representa una previsión: aún no tiene fecha de recepción ni comprobante.
+update public.project_payments
+set payment_date = null,
+    receipt_path = null
+where status = 'pendiente';
 
 create sequence if not exists public.payment_code_sequence;
 grant usage, select on sequence public.payment_code_sequence to service_role;
