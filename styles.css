@@ -88,13 +88,14 @@ h3 { font-size: 1.22rem; margin-bottom: 6px; }
 .subnav button.active { color: white; background: var(--navy); border-color: var(--navy); }
 .notice { margin-top: 28px; padding: 18px 20px; border-radius: 14px; background: #eff5ff; color: #183d7e; line-height: 1.4; }
 .payment-detail-list { display: grid; gap: 12px; margin-top: 18px; }
-.payment-detail-card { display: grid; gap: 8px; padding: 18px; border: 1px solid var(--line); border-radius: 16px; background: var(--white); }
-.payment-detail-card h3 { margin: 0; font-size: 1.1rem; }
-.payment-detail-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.payment-detail-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "code status" "summary action"; gap: 6px 18px; align-items: center; padding: 18px; border: 1px solid var(--line); border-radius: 16px; background: var(--white); }
 .payment-code { color: var(--navy); font-size: .84rem; font-weight: 800; }
-.payment-amount { font-size: 1.35rem; line-height: 1.1; }
-.payment-date { margin: 0; color: var(--muted); font-size: .92rem; }
-.payment-detail-card .button { justify-self: start; margin-top: 6px; }
+.payment-detail-card .payment-code { grid-area: code; }
+.payment-detail-card .status { grid-area: status; justify-self: end; }
+.payment-summary { grid-area: summary; margin: 0; color: var(--navy); }
+.payment-summary strong { font-weight: 700; }
+.payment-summary small { color: var(--muted); font-size: .86em; }
+.payment-detail-card .button { grid-area: action; justify-self: end; }
 .survey-wrap { max-width: 720px; margin: 0 auto; }
 .survey-card { padding: clamp(24px, 5vw, 52px); border-radius: 24px; background: white; border: 1px solid var(--line); }
 fieldset.survey-question { min-inline-size: 0; margin: 0; padding: 25px 0; border: 0; }
@@ -205,5 +206,7 @@ fieldset.survey-question { min-inline-size: 0; margin: 0; padding: 25px 0; borde
   .scale label { padding: 9px 3px; font-size: .7rem; }
   .form-columns { grid-template-columns: 1fr; }
   .modal { max-height: calc(100dvh - 28px); padding: 22px; }
+  .payment-detail-card { grid-template-areas: "code status" "summary summary" "action action"; gap: 8px; }
+  .payment-detail-card .button { justify-self: start; margin-top: 4px; }
 }
 
