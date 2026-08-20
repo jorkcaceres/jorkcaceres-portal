@@ -3,7 +3,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.0';
 const app = document.querySelector('#app');
 const logo = 'assets/jorkcaceres-horizontal-negro.png';
 const supabase = createClient('https://zfzsigdyycgaqvbauffk.supabase.co', 'sb_publishable_K5khETTDgbkAmAOeiDg2Tw_gKfdxBeq');
-const state = { session: null, profile: null, clientPage: 1, projectPage: 1, clients: new Map(), projects: new Map(), portalSettings: null, services: [] };
+const state = { session: null, profile: null, clientPage: 1, projectPage: 1, paymentPage: 1, clients: new Map(), projects: new Map(), payments: new Map(), portalSettings: null, services: [] };
 const privateRoutes = new Set(['inicio', 'proyectos', 'encuestas', 'admin', 'admin-clientes', 'admin-proyectos', 'admin-pagos', 'admin-encuestas', 'admin-portal']);
 const helpUrl = 'https://wa.me/573243062809?text=Hola%2C+necesito+ayuda.+Vengo+del+portal+de+Jorkc%C3%A1ceres';
 const footer = () => '<footer class="footer">© 2026 Jorkcáceres. Portal para clientes. V1.0</footer>';
@@ -84,7 +84,7 @@ async function projectInfo(id) {
 async function projectPayments(id) {
   const { data, error } = await supabase.from('project_payments').select('*').eq('project_id', id).order('payment_date', { ascending: true });
   if (error) return modal('No fue posible abrir los pagos', `<p>${esc(errorText(error))}</p>`);
-  modal('Pagos del proyecto', data.length ? data.map(p => `<div class="notice"><strong>${esc(p.code)}</strong><br>${esc(p.concept)}${p.amount ? `<br>${money(p.amount)}` : ''}<br><span class="status ${p.status === 'pendiente' ? 'progress' : ''}">${p.status === 'confirmado' ? 'Confirmado' : 'Pendiente'}</span>${p.receipt_path ? `<br><a class="text-link" href="${esc(p.receipt_path)}" target="_blank" rel="noreferrer">Ver comprobante</a>` : ''}</div>`).join('') : '<p>No hay pagos registrados para este proyecto.</p>');
+  modal('Pagos del proyecto', data.length ? data.map(p => `<div class="notice"><strong>${esc(p.code)}</strong><br>${esc(paymentType(p.payment_type))}${p.amount ? ` · ${money(p.amount)}` : ''}<br><span class="status ${p.status === 'pendiente' ? 'progress' : ''}">${p.status === 'confirmado' ? 'Confirmado' : 'Pendiente'}</span>${p.receipt_path ? `<br><button class="text-link" onclick="openPaymentReceipt('${esc(p.receipt_path)}')">Ver comprobante</button>` : ''}</div>`).join('') : '<p>No hay pagos registrados para este proyecto.</p>');
 }
 
 async function surveysView() {
@@ -338,10 +338,59 @@ async function showProjectEditForm(id) {
 
 async function adminPaymentsView() {
   loading('Pagos');
-  const { data, error } = await supabase.from('project_payments').select('*, projects(code,title)').order('payment_date', { ascending: false });
+  const pageSize = 10;
+  const from = (state.paymentPage - 1) * pageSize;
+  const { data, error, count } = await supabase.from('project_payments').select('*, projects(code,title,clients(first_name,last_name))', { count: 'exact' }).order('payment_date', { ascending: false }).range(from, from + pageSize - 1);
   if (error) return dataError('Pagos', error);
-  const body = data.length ? `<section class="admin-list">${data.map(payment => `<article class="admin-list-card"><div><p class="eyebrow">${esc(payment.code)}</p><h2>${esc(payment.concept)}</h2><p>${esc(payment.projects?.title || 'Proyecto no disponible')} · ${payment.amount ? money(payment.amount) : 'Sin monto registrado'}</p></div><span class="status ${payment.status === 'pendiente' ? 'progress' : ''}">${payment.status === 'confirmado' ? 'Confirmado' : 'Pendiente'}</span></article>`).join('')}</section>` : '<div class="empty">Aún no hay pagos registrados.</div>';
+  state.payments = new Map(data.map(payment => [payment.id, payment]));
+  const totalPages = Math.max(1, Math.ceil((count || 0) / pageSize));
+  if (state.paymentPage > totalPages) { state.paymentPage = totalPages; return adminPaymentsView(); }
+  const list = data.length ? `<section class="admin-list">${data.map(paymentCard).join('')}</section>${paymentPagination(totalPages)}` : '<div class="empty">Aún no hay pagos registrados.</div>';
+  const body = `<div class="admin-module-actions">${btn('Registrar pago', 'showPaymentForm()', 'primary')}</div>${list}`;
   adminModuleShell('pagos', 'Pagos', 'Consulta el estado y la trazabilidad de los pagos de cada proyecto.', body);
+}
+
+function paymentCard(payment) {
+  const clientName = payment.projects?.clients ? `${payment.projects.clients.first_name} ${payment.projects.clients.last_name}` : 'Cliente no disponible';
+  return `<article class="admin-list-card"><div><p class="eyebrow">${esc(payment.code)}</p><h2>${paymentType(payment.payment_type)}</h2><p>${esc(payment.projects?.title || 'Proyecto no disponible')} · ${esc(clientName)} · ${payment.amount ? money(payment.amount) : 'Sin monto registrado'} · ${date(payment.payment_date)}</p><div class="client-actions">${btn('Modificar pago', `showPaymentEditForm('${payment.id}')`, 'small secondary')}${payment.receipt_path ? btn('Ver comprobante', `openPaymentReceipt('${esc(payment.receipt_path)}')`, 'small secondary') : ''}</div></div><span class="status ${payment.status === 'pendiente' ? 'progress' : ''}">${payment.status === 'confirmado' ? 'Confirmado' : 'Pendiente'}</span></article>`;
+}
+
+function paymentPagination(totalPages) {
+  if (totalPages <= 1) return '';
+  return `<nav class="pagination" aria-label="Paginación de pagos"><button class="button small secondary" onclick="changePaymentPage(${state.paymentPage - 1})" ${state.paymentPage === 1 ? 'disabled' : ''}>Anterior</button><span>Página ${state.paymentPage} de ${totalPages}</span><button class="button small secondary" onclick="changePaymentPage(${state.paymentPage + 1})" ${state.paymentPage === totalPages ? 'disabled' : ''}>Siguiente</button></nav>`;
+}
+
+function changePaymentPage(page) {
+  state.paymentPage = Math.max(1, page);
+  adminPaymentsView();
+}
+
+async function paymentProjectOptions(selectedId = '') {
+  const { data, error } = await supabase.from('projects').select('id,code,title,clients(first_name,last_name)').order('project_date', { ascending: false });
+  if (error) throw error;
+  if (!data.length) throw new Error('Primero registra al menos un proyecto para asociar el pago.');
+  return data.map(project => `<option value="${project.id}" ${project.id === selectedId ? 'selected' : ''}>${esc(`${project.code} · ${project.title}${project.clients ? ` · ${project.clients.first_name} ${project.clients.last_name}` : ''}`)}</option>`).join('');
+}
+
+function paymentFields(payment = {}) {
+  const type = payment.payment_type || 'inicial';
+  return `<label class="field">Proyecto<select name="project_id" required data-project-options></select></label><div class="form-columns"><label class="field">Tipo de pago<select name="payment_type" required><option value="inicial" ${type === 'inicial' ? 'selected' : ''}>Pago inicial</option><option value="final" ${type === 'final' ? 'selected' : ''}>Pago final</option></select></label><label class="field">Estado<select name="status" required><option value="pendiente" ${payment.status === 'pendiente' ? 'selected' : ''}>Pendiente</option><option value="confirmado" ${payment.status === 'confirmado' ? 'selected' : ''}>Confirmado</option></select></label></div><div class="form-columns"><label class="field">Monto (COP)<input name="amount" type="number" min="0" step="1" value="${esc(payment.amount ?? '')}" required></label><label class="field">Fecha de pago<input name="payment_date" type="date" value="${esc(payment.payment_date || '')}" required></label></div><label class="field">Comprobante PNG <small>Opcional · máximo 5 MB.</small><input name="receipt" type="file" accept="image/png"></label>`;
+}
+
+async function showPaymentForm() {
+  try {
+    modal('Registrar pago', `<p class="modal-lead">Registra el pago y conserva su comprobante de forma segura.</p><form class="form client-form" onsubmit="createPortalPayment(event)">${paymentFields()}<div class="modal-actions"><button type="button" class="button secondary" onclick="closeTopModal()">Cancelar</button>${btn('Registrar pago', '', 'primary', 'submit')}</div></form>`, false);
+    document.querySelector('[data-project-options]').innerHTML = `<option value="">Selecciona un proyecto</option>${await paymentProjectOptions()}`;
+  } catch (error) { modal('No fue posible abrir el formulario', `<p>${esc(errorText(error))}</p>`); }
+}
+
+async function showPaymentEditForm(id) {
+  const payment = state.payments.get(id);
+  if (!payment) return modal('No fue posible abrir el pago', '<p>Actualiza la vista e inténtalo nuevamente.</p>');
+  try {
+    modal('Modificar pago', `<p class="modal-lead">Actualiza el estado, los datos o el comprobante del pago.</p><form class="form client-form" onsubmit="updatePortalPayment(event, '${payment.id}')">${paymentFields(payment)}<div class="modal-actions"><button type="button" class="button secondary" onclick="closeTopModal()">Cancelar</button>${btn('Guardar cambios', '', 'primary', 'submit')}</div></form>`, false);
+    document.querySelector('[data-project-options]').innerHTML = await paymentProjectOptions(payment.project_id);
+  } catch (error) { modal('No fue posible abrir el formulario', `<p>${esc(errorText(error))}</p>`); }
 }
 
 async function adminSurveysView() {
@@ -369,6 +418,64 @@ async function invokeProjectAdmin(body) {
   const { data, error } = await supabase.functions.invoke('manage-projects', { body });
   if (error || data?.error) throw new Error(data?.error || errorText(error));
   return data;
+}
+
+async function invokePaymentAdmin(body) {
+  const { data, error } = await supabase.functions.invoke('manage-payments', { body });
+  if (error || data?.error) throw new Error(data?.error || errorText(error));
+  return data;
+}
+
+async function uploadPaymentReceipt(paymentId, file) {
+  if (!(file instanceof File) || file.size === 0) return null;
+  if (file.type !== 'image/png') throw new Error('El comprobante debe estar en formato PNG.');
+  if (file.size > 5 * 1024 * 1024) throw new Error('El comprobante debe pesar máximo 5 MB.');
+  const path = `${paymentId}/receipt.png`;
+  const { error } = await supabase.storage.from('payment-receipts').upload(path, file, { upsert: true, contentType: 'image/png', cacheControl: '3600' });
+  if (error) throw error;
+  await invokePaymentAdmin({ action: 'set_receipt', payment_id: paymentId, receipt_path: path });
+  return path;
+}
+
+async function createPortalPayment(event) {
+  event.preventDefault();
+  const form = new FormData(event.target);
+  const submit = event.target.querySelector('[type="submit"]');
+  submit.disabled = true; submit.textContent = 'Registrando…';
+  try {
+    const data = await invokePaymentAdmin({ action: 'create', project_id: form.get('project_id'), payment_type: form.get('payment_type'), amount: form.get('amount'), payment_date: form.get('payment_date'), status: form.get('status') });
+    await uploadPaymentReceipt(data.payment.id, form.get('receipt'));
+    closeTopModal();
+    state.paymentPage = 1;
+    await adminPaymentsView();
+    modal('Pago registrado', `<p>El pago quedó registrado con el código ${esc(data.payment.code)}.</p>`);
+  } catch (error) {
+    submit.disabled = false; submit.textContent = 'Registrar pago';
+    modal('No fue posible registrar el pago', `<p>${esc(errorText(error))}</p>`);
+  }
+}
+
+async function updatePortalPayment(event, id) {
+  event.preventDefault();
+  const form = new FormData(event.target);
+  const submit = event.target.querySelector('[type="submit"]');
+  submit.disabled = true; submit.textContent = 'Guardando…';
+  try {
+    await invokePaymentAdmin({ action: 'update', payment_id: id, project_id: form.get('project_id'), payment_type: form.get('payment_type'), amount: form.get('amount'), payment_date: form.get('payment_date'), status: form.get('status') });
+    await uploadPaymentReceipt(id, form.get('receipt'));
+    closeTopModal();
+    await adminPaymentsView();
+  } catch (error) {
+    submit.disabled = false; submit.textContent = 'Guardar cambios';
+    modal('No fue posible actualizar el pago', `<p>${esc(errorText(error))}</p>`);
+  }
+}
+
+async function openPaymentReceipt(path) {
+  if (/^https?:\/\//i.test(path)) return window.open(path, '_blank', 'noopener');
+  const { data, error } = await supabase.storage.from('payment-receipts').createSignedUrl(path, 60);
+  if (error || !data?.signedUrl) return modal('No fue posible abrir el comprobante', `<p>${esc(errorText(error))}</p>`);
+  window.open(data.signedUrl, '_blank', 'noopener');
 }
 
 async function createPortalProject(event) {
@@ -461,12 +568,13 @@ function closeTopModal() { document.querySelector('.modal-backdrop:last-of-type'
 function copyProjectLink(value, element) { navigator.clipboard?.writeText(decodeURIComponent(value)); element.innerHTML = 'Enlace copiado <span class="circle">✓</span>'; }
 function copyTemporaryPassword(value, element) { navigator.clipboard?.writeText(decodeURIComponent(value)); element.innerHTML = 'Contraseña copiada <span class="circle">✓</span>'; }
 function status(v) { return ({ planificado: 'Planificado', en_curso: 'En curso', finalizado: 'Finalizado', pausado: 'Pausado' })[v] || v; }
+function paymentType(v) { return ({ inicial: 'Pago inicial', final: 'Pago final' })[v] || 'Pago'; }
 function expectation(v) { return ({ completamente: 'Sí, completamente', gran_parte: 'En gran parte', parcialmente: 'Parcialmente', no: 'No' })[v] || v; }
 function returnLabel(v) { return ({ si: 'Sí', tal_vez: 'Tal vez', no: 'No' })[v] || v; }
 function date(v) { return v ? new Intl.DateTimeFormat('es-CO', { dateStyle: 'medium' }).format(new Date(`${v.slice(0, 10)}T12:00:00`)) : 'Sin fecha'; }
 function money(v) { return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v); }
 
-Object.assign(window, { signIn, signOut, requestPasswordReset, updatePassword, submitCsat, projectInfo, projectPayments, surveyResponse, copyProjectLink, showClientForm, togglePortalAccess, createPortalClient, updatePortalClient, showClientEditForm, confirmClientAction, runClientAction, changeClientPage, showProjectForm, showProjectEditForm, createPortalProject, updatePortalProject, changeProjectPage, closeTopModal, copyTemporaryPassword, savePortalAppearance, addPortalService, setPortalServiceStatus });
+Object.assign(window, { signIn, signOut, requestPasswordReset, updatePassword, submitCsat, projectInfo, projectPayments, surveyResponse, copyProjectLink, showClientForm, togglePortalAccess, createPortalClient, updatePortalClient, showClientEditForm, confirmClientAction, runClientAction, changeClientPage, showProjectForm, showProjectEditForm, createPortalProject, updatePortalProject, changeProjectPage, showPaymentForm, showPaymentEditForm, createPortalPayment, updatePortalPayment, changePaymentPage, openPaymentReceipt, closeTopModal, copyTemporaryPassword, savePortalAppearance, addPortalService, setPortalServiceStatus });
 supabase.auth.onAuthStateChange((event) => { if (event === 'PASSWORD_RECOVERY') location.hash = '#actualizar-clave'; if (event === 'SIGNED_OUT') { state.session = null; state.profile = null; } });
 window.addEventListener('hashchange', render);
 await hydrate();
