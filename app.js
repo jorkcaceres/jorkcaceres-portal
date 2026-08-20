@@ -3,7 +3,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.0';
 const app = document.querySelector('#app');
 const logo = 'assets/jorkcaceres-horizontal-negro.png';
 const supabase = createClient('https://zfzsigdyycgaqvbauffk.supabase.co', 'sb_publishable_K5khETTDgbkAmAOeiDg2Tw_gKfdxBeq');
-const state = { session: null, profile: null, clientPage: 1, projectPage: 1, paymentPage: 1, clients: new Map(), projects: new Map(), payments: new Map(), portalSettings: null, services: [] };
+const state = { session: null, profile: null, clientPage: 1, projectPage: 1, paymentPage: 1, clients: new Map(), projects: new Map(), payments: new Map(), portalSettings: null, services: [], paymentTypes: [] };
 const privateRoutes = new Set(['inicio', 'proyectos', 'encuestas', 'admin', 'admin-clientes', 'admin-proyectos', 'admin-pagos', 'admin-encuestas', 'admin-portal']);
 const helpUrl = 'https://wa.me/573243062809?text=Hola%2C+necesito+ayuda.+Vengo+del+portal+de+Jorkc%C3%A1ceres';
 const footer = () => '<footer class="footer">© 2026 Jorkcáceres. Portal para clientes. V1.0</footer>';
@@ -82,6 +82,7 @@ async function projectInfo(id) {
 }
 
 async function projectPayments(id) {
+  await loadPortalPaymentTypes();
   const { data, error } = await supabase.from('project_payments').select('*').eq('project_id', id).order('payment_date', { ascending: true });
   if (error) return modal('No fue posible abrir los pagos', `<p>${esc(errorText(error))}</p>`);
   modal('Pagos del proyecto', data.length ? data.map(p => `<div class="notice"><strong>${esc(p.code)}</strong><br>${esc(paymentType(p.payment_type))}${p.amount ? ` · ${money(p.amount)}` : ''}<br><span class="status ${p.status === 'pendiente' ? 'progress' : ''}">${p.status === 'confirmado' ? 'Confirmado' : 'Pendiente'}</span>${p.receipt_path ? `<br><button class="text-link" onclick="openPaymentReceipt('${esc(p.receipt_path)}')">Ver comprobante</button>` : ''}</div>`).join('') : '<p>No hay pagos registrados para este proyecto.</p>');
@@ -179,12 +180,13 @@ function togglePortalAccess(enabled) {
 
 async function adminPortalView() {
   loading('Portal');
-  const [loadedSettings, services] = await Promise.all([loadPortalSettings(true), loadPortalServices(true)]);
+  const [loadedSettings, services, paymentTypes] = await Promise.all([loadPortalSettings(true), loadPortalServices(true), loadPortalPaymentTypes(true)]);
   const settings = loadedSettings || {};
   const desktopPreview = settings.hero_desktop_url ? `<img class="portal-image-preview" src="${esc(settings.hero_desktop_url)}" alt="Vista previa para escritorio">` : '<div class="image-empty">Aún no hay imagen de escritorio.</div>';
   const mobilePreview = settings.hero_mobile_url ? `<img class="portal-image-preview" src="${esc(settings.hero_mobile_url)}" alt="Vista previa para móvil">` : '<div class="image-empty">Aún no hay imagen móvil.</div>';
   const serviceList = services.length ? `<div class="service-list">${services.map(service => `<article class="service-item"><div><strong>${esc(service.name)}</strong><span class="status ${service.active ? '' : 'progress'}">${service.active ? 'Activo' : 'Inactivo'}</span></div>${btn(service.active ? 'Inactivar' : 'Activar', `setPortalServiceStatus('${service.id}', ${!service.active})`, 'small secondary')}</article>`).join('')}</div>` : '<div class="empty">Aún no hay servicios configurados.</div>';
-  const body = `<div class="settings-accordions"><details class="settings-card"><summary><span><strong>Imagen principal</strong><small>Personaliza la imagen de bienvenida del portal.</small></span></summary><div class="accordion-content"><form class="form portal-settings-form" onsubmit="savePortalAppearance(event)"><div class="image-settings-grid"><label class="field">Imagen escritorio <small>Proporción recomendada: 4:5 vertical (por ejemplo, 1600 × 2000 px) · JPG, PNG o WebP.</small><input name="hero_desktop" type="file" accept="image/jpeg,image/png,image/webp">${desktopPreview}</label><label class="field">Imagen móvil <small>Proporción recomendada: 4:5 vertical (por ejemplo, 1080 × 1350 px) · JPG, PNG o WebP.</small><input name="hero_mobile" type="file" accept="image/jpeg,image/png,image/webp">${mobilePreview}</label></div>${btn('Guardar imagen', '', 'primary', 'submit')}</form></div></details><details class="settings-card"><summary><span><strong>Servicios disponibles</strong><small>Define los servicios que podrás asociar a los proyectos.</small></span></summary><div class="accordion-content"><form class="service-form" onsubmit="addPortalService(event)"><label class="field">Nuevo servicio<input name="service_name" placeholder="Nombre del servicio" required></label>${btn('Agregar servicio', '', 'primary', 'submit')}</form>${serviceList}</div></details></div>`;
+  const paymentTypeList = paymentTypes.length ? `<div class="service-list">${paymentTypes.map(type => `<article class="service-item"><div><strong>${esc(type.name)}</strong><span class="status ${type.active ? '' : 'progress'}">${type.active ? 'Activo' : 'Inactivo'}</span></div>${btn(type.active ? 'Inactivar' : 'Activar', `setPortalPaymentTypeStatus('${type.id}', ${!type.active})`, 'small secondary')}</article>`).join('')}</div>` : '<div class="empty">Aún no hay tipos de pago configurados.</div>';
+  const body = `<div class="settings-accordions"><details class="settings-card"><summary><span><strong>Imagen principal</strong><small>Personaliza la imagen de bienvenida del portal.</small></span></summary><div class="accordion-content"><form class="form portal-settings-form" onsubmit="savePortalAppearance(event)"><div class="image-settings-grid"><label class="field">Imagen escritorio <small>Proporción recomendada: 4:5 vertical (por ejemplo, 1600 × 2000 px) · JPG, PNG o WebP.</small><input name="hero_desktop" type="file" accept="image/jpeg,image/png,image/webp">${desktopPreview}</label><label class="field">Imagen móvil <small>Proporción recomendada: 4:5 vertical (por ejemplo, 1080 × 1350 px) · JPG, PNG o WebP.</small><input name="hero_mobile" type="file" accept="image/jpeg,image/png,image/webp">${mobilePreview}</label></div>${btn('Guardar imagen', '', 'primary', 'submit')}</form></div></details><details class="settings-card"><summary><span><strong>Servicios disponibles</strong><small>Define los servicios que podrás asociar a los proyectos.</small></span></summary><div class="accordion-content"><form class="service-form" onsubmit="addPortalService(event)"><label class="field">Nuevo servicio<input name="service_name" placeholder="Nombre del servicio" required></label>${btn('Agregar servicio', '', 'primary', 'submit')}</form>${serviceList}</div></details><details class="settings-card"><summary><span><strong>Tipos de pago</strong><small>Define los tipos de pago que podrás registrar en los proyectos.</small></span></summary><div class="accordion-content"><form class="service-form" onsubmit="addPortalPaymentType(event)"><label class="field">Nuevo tipo de pago<input name="payment_type_name" placeholder="Por ejemplo: Pago mensual" required></label>${btn('Agregar tipo', '', 'primary', 'submit')}</form>${paymentTypeList}</div></details></div>`;
   adminModuleShell('portal', 'Personalizar portal', 'Administra la imagen principal que ven los clientes al ingresar.', body);
 }
 
@@ -218,6 +220,44 @@ async function setPortalServiceStatus(id, active) {
   const { error } = await supabase.from('portal_services').update({ active }).eq('id', id);
   if (error) return modal('No fue posible actualizar el servicio', `<p>${esc(errorText(error))}</p>`);
   state.services = [];
+  await adminPortalView();
+}
+
+async function loadPortalPaymentTypes(force = false) {
+  if (state.paymentTypes.length && !force) return state.paymentTypes;
+  const { data, error } = await supabase.from('portal_payment_types').select('id,code,name,active').order('name', { ascending: true });
+  if (error) throw error;
+  state.paymentTypes = data || [];
+  return state.paymentTypes;
+}
+
+function paymentTypeCode(name) {
+  return String(name).trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+}
+
+async function addPortalPaymentType(event) {
+  event.preventDefault();
+  const form = new FormData(event.target);
+  const name = String(form.get('payment_type_name') || '').trim();
+  const code = paymentTypeCode(name);
+  const submit = event.target.querySelector('[type="submit"]');
+  if (!name || !code) return;
+  submit.disabled = true; submit.textContent = 'Agregando…';
+  try {
+    const { error } = await supabase.from('portal_payment_types').insert({ code, name });
+    if (error) throw error;
+    state.paymentTypes = [];
+    await adminPortalView();
+  } catch (error) {
+    submit.disabled = false; submit.textContent = 'Agregar tipo';
+    modal('No fue posible agregar el tipo de pago', `<p>${esc(error.code === '23505' ? 'Ese tipo de pago ya está registrado.' : errorText(error))}</p>`);
+  }
+}
+
+async function setPortalPaymentTypeStatus(id, active) {
+  const { error } = await supabase.from('portal_payment_types').update({ active }).eq('id', id);
+  if (error) return modal('No fue posible actualizar el tipo de pago', `<p>${esc(errorText(error))}</p>`);
+  state.paymentTypes = [];
   await adminPortalView();
 }
 
@@ -338,6 +378,7 @@ async function showProjectEditForm(id) {
 
 async function adminPaymentsView() {
   loading('Pagos');
+  try { await loadPortalPaymentTypes(true); } catch (error) { return dataError('Pagos', error); }
   const pageSize = 10;
   const from = (state.paymentPage - 1) * pageSize;
   const { data, error, count } = await supabase.from('project_payments').select('*, projects(code,title,clients(first_name,last_name))', { count: 'exact' }).order('payment_date', { ascending: false }).range(from, from + pageSize - 1);
@@ -374,11 +415,15 @@ async function paymentProjectOptions(selectedId = '') {
 
 function paymentFields(payment = {}) {
   const type = payment.payment_type || 'inicial';
-  return `<label class="field">Proyecto<select name="project_id" required data-project-options></select></label><div class="form-columns"><label class="field">Tipo de pago<select name="payment_type" required><option value="inicial" ${type === 'inicial' ? 'selected' : ''}>Pago inicial</option><option value="final" ${type === 'final' ? 'selected' : ''}>Pago final</option></select></label><label class="field">Estado<select name="status" required><option value="pendiente" ${payment.status === 'pendiente' ? 'selected' : ''}>Pendiente</option><option value="confirmado" ${payment.status === 'confirmado' ? 'selected' : ''}>Confirmado</option></select></label></div><div class="form-columns"><label class="field">Monto (COP)<input name="amount" type="number" min="0" step="1" value="${esc(payment.amount ?? '')}" required></label><label class="field">Fecha de pago<input name="payment_date" type="date" value="${esc(payment.payment_date || '')}" required></label></div><label class="field">Comprobante PNG <small>Opcional · máximo 5 MB.</small><input name="receipt" type="file" accept="image/png"></label>`;
+  const availableTypes = state.paymentTypes.filter(item => item.active || item.code === type);
+  const typeOptions = availableTypes.map(item => `<option value="${esc(item.code)}" ${item.code === type ? 'selected' : ''}>${esc(item.name)}${item.active ? '' : ' (inactivo)'}</option>`).join('');
+  return `<label class="field">Proyecto<select name="project_id" required data-project-options></select></label><div class="form-columns"><label class="field">Tipo de pago<select name="payment_type" required>${typeOptions || '<option value="">No hay tipos de pago activos</option>'}</select></label><label class="field">Estado<select name="status" required><option value="pendiente" ${payment.status === 'pendiente' ? 'selected' : ''}>Pendiente</option><option value="confirmado" ${payment.status === 'confirmado' ? 'selected' : ''}>Confirmado</option></select></label></div><div class="form-columns"><label class="field">Monto (COP)<input name="amount" type="number" min="0" step="1" value="${esc(payment.amount ?? '')}" required></label><label class="field">Fecha de pago<input name="payment_date" type="date" value="${esc(payment.payment_date || '')}" required></label></div><label class="field">Comprobante PNG <small>Opcional · máximo 5 MB.</small><input name="receipt" type="file" accept="image/png"></label>`;
 }
 
 async function showPaymentForm() {
   try {
+    await loadPortalPaymentTypes(true);
+    if (!state.paymentTypes.some(item => item.active)) throw new Error('Primero configura al menos un tipo de pago activo en Administración → Personalizar portal.');
     modal('Registrar pago', `<p class="modal-lead">Registra el pago y conserva su comprobante de forma segura.</p><form class="form client-form" onsubmit="createPortalPayment(event)">${paymentFields()}<div class="modal-actions"><button type="button" class="button secondary" onclick="closeTopModal()">Cancelar</button>${btn('Registrar pago', '', 'primary', 'submit')}</div></form>`, false);
     document.querySelector('[data-project-options]').innerHTML = `<option value="">Selecciona un proyecto</option>${await paymentProjectOptions()}`;
   } catch (error) { modal('No fue posible abrir el formulario', `<p>${esc(errorText(error))}</p>`); }
@@ -388,6 +433,7 @@ async function showPaymentEditForm(id) {
   const payment = state.payments.get(id);
   if (!payment) return modal('No fue posible abrir el pago', '<p>Actualiza la vista e inténtalo nuevamente.</p>');
   try {
+    await loadPortalPaymentTypes(true);
     modal('Modificar pago', `<p class="modal-lead">Actualiza el estado, los datos o el comprobante del pago.</p><form class="form client-form" onsubmit="updatePortalPayment(event, '${payment.id}')">${paymentFields(payment)}<div class="modal-actions"><button type="button" class="button secondary" onclick="closeTopModal()">Cancelar</button>${btn('Guardar cambios', '', 'primary', 'submit')}</div></form>`, false);
     document.querySelector('[data-project-options]').innerHTML = await paymentProjectOptions(payment.project_id);
   } catch (error) { modal('No fue posible abrir el formulario', `<p>${esc(errorText(error))}</p>`); }
@@ -568,13 +614,13 @@ function closeTopModal() { document.querySelector('.modal-backdrop:last-of-type'
 function copyProjectLink(value, element) { navigator.clipboard?.writeText(decodeURIComponent(value)); element.innerHTML = 'Enlace copiado <span class="circle">✓</span>'; }
 function copyTemporaryPassword(value, element) { navigator.clipboard?.writeText(decodeURIComponent(value)); element.innerHTML = 'Contraseña copiada <span class="circle">✓</span>'; }
 function status(v) { return ({ planificado: 'Planificado', en_curso: 'En curso', finalizado: 'Finalizado', pausado: 'Pausado' })[v] || v; }
-function paymentType(v) { return ({ inicial: 'Pago inicial', final: 'Pago final' })[v] || 'Pago'; }
+function paymentType(v) { return state.paymentTypes.find(type => type.code === v)?.name || ({ inicial: 'Pago inicial', final: 'Pago final', total: 'Pago total' })[v] || 'Pago'; }
 function expectation(v) { return ({ completamente: 'Sí, completamente', gran_parte: 'En gran parte', parcialmente: 'Parcialmente', no: 'No' })[v] || v; }
 function returnLabel(v) { return ({ si: 'Sí', tal_vez: 'Tal vez', no: 'No' })[v] || v; }
 function date(v) { return v ? new Intl.DateTimeFormat('es-CO', { dateStyle: 'medium' }).format(new Date(`${v.slice(0, 10)}T12:00:00`)) : 'Sin fecha'; }
 function money(v) { return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v); }
 
-Object.assign(window, { signIn, signOut, requestPasswordReset, updatePassword, submitCsat, projectInfo, projectPayments, surveyResponse, copyProjectLink, showClientForm, togglePortalAccess, createPortalClient, updatePortalClient, showClientEditForm, confirmClientAction, runClientAction, changeClientPage, showProjectForm, showProjectEditForm, createPortalProject, updatePortalProject, changeProjectPage, showPaymentForm, showPaymentEditForm, createPortalPayment, updatePortalPayment, changePaymentPage, openPaymentReceipt, closeTopModal, copyTemporaryPassword, savePortalAppearance, addPortalService, setPortalServiceStatus });
+Object.assign(window, { signIn, signOut, requestPasswordReset, updatePassword, submitCsat, projectInfo, projectPayments, surveyResponse, copyProjectLink, showClientForm, togglePortalAccess, createPortalClient, updatePortalClient, showClientEditForm, confirmClientAction, runClientAction, changeClientPage, showProjectForm, showProjectEditForm, createPortalProject, updatePortalProject, changeProjectPage, showPaymentForm, showPaymentEditForm, createPortalPayment, updatePortalPayment, changePaymentPage, openPaymentReceipt, closeTopModal, copyTemporaryPassword, savePortalAppearance, addPortalService, setPortalServiceStatus, addPortalPaymentType, setPortalPaymentTypeStatus });
 supabase.auth.onAuthStateChange((event) => { if (event === 'PASSWORD_RECOVERY') location.hash = '#actualizar-clave'; if (event === 'SIGNED_OUT') { state.session = null; state.profile = null; } });
 window.addEventListener('hashchange', render);
 await hydrate();
