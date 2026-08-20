@@ -415,26 +415,28 @@ async function paymentProjectOptions(selectedId = '') {
 
 function paymentFields(payment = {}) {
   const type = payment.payment_type || 'inicial';
-  const pending = payment.status === 'pendiente';
+  const status = payment.status || '';
+  const showPaymentDetails = status === 'confirmado';
   const availableTypes = state.paymentTypes.filter(item => item.active || item.code === type);
   const typeOptions = availableTypes.map(item => `<option value="${esc(item.code)}" ${item.code === type ? 'selected' : ''}>${esc(item.name)}${item.active ? '' : ' (inactivo)'}</option>`).join('');
-  return `<label class="field">Proyecto<select name="project_id" required data-project-options></select></label><div class="form-columns"><label class="field">Tipo de pago<select name="payment_type" required>${typeOptions || '<option value="">No hay tipos de pago activos</option>'}</select></label><label class="field">Estado<select name="status" required onchange="togglePaymentDetails(this.value)"><option value="pendiente" ${pending ? 'selected' : ''}>Pendiente</option><option value="confirmado" ${payment.status === 'confirmado' ? 'selected' : ''}>Confirmado</option></select></label></div><div class="form-columns"><label class="field">Monto (COP)<input name="amount" type="number" min="0" step="1" value="${esc(payment.amount ?? '')}" required></label><label class="field" data-payment-date ${pending ? 'hidden' : ''}>Fecha de pago<input name="payment_date" type="date" value="${esc(payment.payment_date || '')}" ${pending ? 'disabled' : 'required'}></label></div><label class="field" data-payment-receipt ${pending ? 'hidden' : ''}>Comprobante PNG <small>Opcional · máximo 5 MB.</small><input name="receipt" type="file" accept="image/png" ${pending ? 'disabled' : ''}></label><p class="field-note" data-payment-pending-note ${pending ? '' : 'hidden'}>La fecha y el comprobante se registran cuando confirmes que el pago fue recibido.</p>`;
+  const pendingNote = status === 'pendiente' ? 'La fecha y el comprobante se registran cuando confirmes que el pago fue recibido.' : 'Selecciona el estado del pago para continuar.';
+  return `<label class="field">Proyecto<select name="project_id" required data-project-options></select></label><div class="form-columns"><label class="field">Tipo de pago<select name="payment_type" required>${typeOptions || '<option value="">No hay tipos de pago activos</option>'}</select></label><label class="field">Estado<select name="status" required onchange="togglePaymentDetails(this.value)"><option value="" ${!status ? 'selected' : ''} disabled>Selecciona una opción</option><option value="pendiente" ${status === 'pendiente' ? 'selected' : ''}>Pendiente</option><option value="confirmado" ${status === 'confirmado' ? 'selected' : ''}>Confirmado</option></select></label></div><div class="form-columns"><label class="field">Monto (COP)<input name="amount" type="number" min="0" step="1" value="${esc(payment.amount ?? '')}" required></label><label class="field" data-payment-date ${showPaymentDetails ? '' : 'hidden'}>Fecha de pago<input name="payment_date" type="date" value="${esc(payment.payment_date || '')}" ${showPaymentDetails ? 'required' : 'disabled'}></label></div><label class="field" data-payment-receipt ${showPaymentDetails ? '' : 'hidden'}>Comprobante PNG <small>Opcional · máximo 5 MB.</small><input name="receipt" type="file" accept="image/png" ${showPaymentDetails ? '' : 'disabled'}></label><p class="field-note" data-payment-pending-note ${showPaymentDetails ? 'hidden' : ''}>${pendingNote}</p>`;
 }
 
 function togglePaymentDetails(status) {
   const form = document.querySelector('.modal form');
   if (!form) return;
-  const pending = status === 'pendiente';
+  const showPaymentDetails = status === 'confirmado';
   const dateField = form.querySelector('[data-payment-date]');
   const dateInput = form.querySelector('[name="payment_date"]');
   const receiptField = form.querySelector('[data-payment-receipt]');
   const receiptInput = form.querySelector('[name="receipt"]');
   const note = form.querySelector('[data-payment-pending-note]');
-  if (dateField) dateField.hidden = pending;
-  if (receiptField) receiptField.hidden = pending;
-  if (note) note.hidden = !pending;
-  if (dateInput) { dateInput.disabled = pending; dateInput.required = !pending; if (pending) dateInput.value = ''; }
-  if (receiptInput) { receiptInput.disabled = pending; if (pending) receiptInput.value = ''; }
+  if (dateField) dateField.hidden = !showPaymentDetails;
+  if (receiptField) receiptField.hidden = !showPaymentDetails;
+  if (note) { note.hidden = showPaymentDetails; note.textContent = status === 'pendiente' ? 'La fecha y el comprobante se registran cuando confirmes que el pago fue recibido.' : 'Selecciona el estado del pago para continuar.'; }
+  if (dateInput) { dateInput.disabled = !showPaymentDetails; dateInput.required = showPaymentDetails; if (!showPaymentDetails) dateInput.value = ''; }
+  if (receiptInput) { receiptInput.disabled = !showPaymentDetails; if (!showPaymentDetails) receiptInput.value = ''; }
 }
 
 async function showPaymentForm() {
