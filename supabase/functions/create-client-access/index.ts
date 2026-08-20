@@ -69,6 +69,7 @@ export default {
         email,
         password: temporaryPassword,
         email_confirm: true,
+        user_metadata: { force_password_change: true },
       })
 
       if (userError || !userResult.user) {
@@ -143,6 +144,7 @@ export default {
         email: client.email,
         password: temporaryPassword,
         email_confirm: true,
+        user_metadata: { force_password_change: true },
       })
       if (userError || !userResult.user) return json({ error: userError?.message ?? 'No fue posible crear el acceso al portal.' }, 400)
 
@@ -168,7 +170,12 @@ export default {
 
     if (action === 'reset_password') {
       const temporaryPassword = createTemporaryPassword()
-      const { error: passwordError } = await ctx.supabaseAdmin.auth.admin.updateUserById(accessProfile.id, { password: temporaryPassword })
+      const { data: userData, error: userLookupError } = await ctx.supabaseAdmin.auth.admin.getUserById(accessProfile.id)
+      if (userLookupError || !userData.user) return json({ error: 'No fue posible recuperar la cuenta del cliente.' }, 400)
+      const { error: passwordError } = await ctx.supabaseAdmin.auth.admin.updateUserById(accessProfile.id, {
+        password: temporaryPassword,
+        user_metadata: { ...userData.user.user_metadata, force_password_change: true },
+      })
       if (passwordError) return json({ error: passwordError.message || 'No fue posible restablecer la contraseña.' }, 400)
       return json({ temporaryPassword })
     }

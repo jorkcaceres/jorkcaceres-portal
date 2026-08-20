@@ -3,19 +3,23 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.0';
 const app = document.querySelector('#app');
 const logo = 'assets/jorkcaceres-horizontal-negro.png';
 const supabase = createClient('https://zfzsigdyycgaqvbauffk.supabase.co', 'sb_publishable_K5khETTDgbkAmAOeiDg2Tw_gKfdxBeq');
-const state = { session: null, profile: null, clientPage: 1, clients: new Map() };
-const privateRoutes = new Set(['inicio', 'proyectos', 'encuestas', 'admin', 'admin-clientes', 'admin-proyectos', 'admin-pagos', 'admin-encuestas']);
+const state = { session: null, profile: null, clientPage: 1, clients: new Map(), portalSettings: null };
+const privateRoutes = new Set(['inicio', 'proyectos', 'encuestas', 'admin', 'admin-clientes', 'admin-proyectos', 'admin-pagos', 'admin-encuestas', 'admin-portal']);
 const helpUrl = 'https://wa.me/573243062809?text=Hola%2C+necesito+ayuda.+Vengo+del+portal+de+Jorkc%C3%A1ceres';
 const footer = () => '<footer class="footer">© 2026 Jorkcáceres. Portal para clientes. V1.0</footer>';
 const arrowIcon = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7"/><path d="M8 7h9v9"/></svg>';
 const backIcon = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/><path d="M9 12h12"/></svg>';
 const copyIcon = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+const cardIcons = {
+  projects: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>',
+  surveys: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>',
+};
 const btn = (label, action, classes = '', type = 'button') => `<button type="${type}" class="button ${classes}" onclick="${action}">${label}<span class="circle">${arrowIcon}</span></button>`;
 const esc = (value = '') => String(value).replace(/[&<>'"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c]));
 const errorText = (error) => error?.message || 'No fue posible completar la acción.';
 
 function header() {
-  const name = state.profile?.clients?.first_name || state.session?.user?.email || 'Mi cuenta';
+  const name = state.session?.user?.email || 'Mi cuenta';
   return `<header class="header"><a class="brand" href="#inicio"><img src="${logo}" alt="Jorkcáceres" /></a><div class="header-actions"><span class="account-name">${esc(name)}</span><a class="help-link" href="${helpUrl}" target="_blank" rel="noreferrer">¿Necesitas ayuda?</a><button class="user-button" title="Cerrar sesión" aria-label="Cerrar sesión" onclick="signOut()"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/><path d="M21 19V5a2 2 0 0 0-2-2h-6"/></svg></button></div></header>`;
 }
 
@@ -23,17 +27,32 @@ function publicHeader() {
   return `<header class="header"><a class="brand" href="#login"><img src="${logo}" alt="Jorkcáceres" /></a><div class="header-actions"><a class="help-link" href="${helpUrl}" target="_blank" rel="noreferrer">¿Necesitas ayuda?</a><button class="user-button" title="Volver atrás" aria-label="Volver atrás" onclick="location.hash='#login'">${backIcon}</button></div></header>`;
 }
 
+function breadcrumbs(items) {
+  return `<nav class="breadcrumbs" aria-label="Ruta de navegación">${items.map((item, index) => index === items.length - 1 ? `<span aria-current="page">${esc(item.label)}</span>` : `<a href="${item.href}">${esc(item.label)}</a>`).join('<span class="breadcrumb-separator" aria-hidden="true">/</span>')}</nav>`;
+}
+
 function loginView(message = '') {
   app.innerHTML = `<section class="login"><div class="login-panel"><a class="brand" href="#login"><img src="${logo}" alt="Jorkcáceres" /></a><div class="login-content"><p class="eyebrow">Portal Jorkcáceres</p><h1>Todo lo importante, en un solo lugar.</h1><p class="lead">Consulta el estado de tus proyectos, entregables, pagos y encuestas.</p><form class="form" onsubmit="signIn(event)"><label class="field">Correo electrónico<input id="login-email" type="email" placeholder="nombre@empresa.com" autocomplete="email" required></label><label class="field">Contraseña<input id="login-password" type="password" placeholder="••••••••" autocomplete="current-password" required></label><div class="form-row"><span></span><button type="button" class="text-link" onclick="requestPasswordReset()">¿Olvidaste tu clave?</button></div>${message ? `<p class="form-message">${esc(message)}</p>` : ''}${btn('Iniciar sesión', '', 'primary', 'submit')}</form></div></div><aside class="login-aside"><article class="announcement"><span class="tag">Tu opinión cuenta</span><h2>¿Cómo fue tu experiencia?</h2><p>Tu respuesta me ayuda a mejorar la forma en que trabajo y las soluciones que construyo.</p>${btn('Responder encuesta', "location.hash='#satisfaccion'", 'secondary')}</article><article class="announcement coming"><span class="tag">Próximamente</span><h2>Diagnóstico digital</h2><p>Conoce el estado actual de tu empresa y encuentra oportunidades para avanzar.</p><button class="button secondary" disabled>Muy pronto</button></article></aside></section>${footer()}`;
 }
 
 function recoveryView() {
-  app.innerHTML = `<section class="login"><div class="login-panel"><a class="brand" href="#login"><img src="${logo}" alt="Jorkcáceres" /></a><div class="login-content"><p class="eyebrow">Restablecer contraseña</p><h1>Crea una nueva clave.</h1><p class="lead">Elige una contraseña nueva para ingresar al portal.</p><form class="form" onsubmit="updatePassword(event)"><label class="field">Nueva contraseña<input id="new-password" type="password" minlength="8" autocomplete="new-password" required></label><label class="field">Confirmar contraseña<input id="confirm-password" type="password" minlength="8" autocomplete="new-password" required></label>${btn('Guardar contraseña', '', 'primary', 'submit')}</form></div></div><aside class="login-aside"><article class="announcement"><span class="tag">Portal seguro</span><h2>Tu cuenta está protegida.</h2><p>Después de guardar tu nueva contraseña podrás ingresar con normalidad.</p></article></aside></section>${footer()}`;
+  const mandatory = state.session?.user?.user_metadata?.force_password_change === true;
+  const description = mandatory ? 'Por seguridad, debes crear una nueva contraseña antes de continuar.' : 'Elige una contraseña nueva para ingresar al portal.';
+  app.innerHTML = `<section class="login"><div class="login-panel"><a class="brand" href="#login"><img src="${logo}" alt="Jorkcáceres" /></a><div class="login-content"><p class="eyebrow">Restablecer contraseña</p><h1>Crea una nueva clave.</h1><p class="lead">${description}</p><form class="form" onsubmit="updatePassword(event)"><label class="field">Nueva contraseña<input id="new-password" type="password" minlength="8" autocomplete="new-password" required></label><label class="field">Confirmar contraseña<input id="confirm-password" type="password" minlength="8" autocomplete="new-password" required></label>${btn('Guardar contraseña', '', 'primary', 'submit')}</form>${mandatory ? '<button class="text-link recovery-signout" onclick="signOut()">Cerrar sesión</button>' : ''}</div></div><aside class="login-aside"><article class="announcement"><span class="tag">Portal seguro</span><h2>Tu cuenta está protegida.</h2><p>Después de guardar tu nueva contraseña podrás ingresar con normalidad.</p></article></aside></section>${footer()}`;
 }
 
-function homeView() {
-  const firstName = state.profile?.clients?.first_name || 'bienvenido';
-  app.innerHTML = `${header()}<main class="page"><section class="hero"><div><p class="eyebrow">Hola, ${esc(firstName)}</p><h1>Tu espacio de trabajo con Jorkcáceres.</h1><p class="lead">Aquí encontrarás información relevante de los proyectos que realizamos juntos y las encuestas que has respondido.</p></div><div class="hero-mark" aria-hidden="true">J</div></section><section class="section"><div class="section-heading"><div><p class="eyebrow">Accesos</p><h2>¿Qué quieres consultar?</h2></div></div><div class="card-grid"><article class="card"><div class="card-icon">▣</div><h3>Proyectos</h3><p>Revisa el estado de tus proyectos, sus entregables, observaciones y pagos.</p>${btn('Ver proyectos', "location.hash='#proyectos'")}</article><article class="card"><div class="card-icon">✓</div><h3>Encuestas</h3><p>Consulta las encuestas que has realizado y los resultados disponibles.</p>${btn('Ver encuestas', "location.hash='#encuestas'")}</article></div></section></main>${footer()}`;
+async function homeView() {
+  const email = state.session?.user?.email || 'bienvenido';
+  const settings = await loadPortalSettings();
+  const heroImage = settings?.hero_desktop_url ? `<picture class="hero-image"><source media="(max-width: 760px)" srcset="${esc(settings.hero_mobile_url || settings.hero_desktop_url)}"><img src="${esc(settings.hero_desktop_url)}" alt="Imagen principal del Portal Jorkcáceres"></picture>` : '<div class="hero-mark" aria-hidden="true">J</div>';
+  app.innerHTML = `${header()}<main class="page"><section class="hero"><div><p class="eyebrow">Hola, ${esc(email)}</p><h1>Tu espacio de trabajo con Jorkcáceres.</h1><p class="lead">Aquí encontrarás información relevante de los proyectos que realizamos juntos y las encuestas que has respondido.</p></div>${heroImage}</section><section class="section"><div class="section-heading"><div><p class="eyebrow">Accesos</p><h2>¿Qué quieres consultar?</h2></div></div><div class="card-grid"><article class="card"><div class="card-icon">${cardIcons.projects}</div><h3>Proyectos</h3><p>Revisa el estado de tus proyectos, sus entregables, observaciones y pagos.</p>${btn('Ver proyectos', "location.hash='#proyectos'")}</article><article class="card"><div class="card-icon">${cardIcons.surveys}</div><h3>Encuestas</h3><p>Consulta las encuestas que has realizado y los resultados disponibles.</p>${btn('Ver encuestas', "location.hash='#encuestas'")}</article></div></section></main>${footer()}`;
+}
+
+async function loadPortalSettings(force = false) {
+  if (state.portalSettings && !force) return state.portalSettings;
+  const { data, error } = await supabase.from('portal_settings').select('hero_desktop_url, hero_mobile_url').eq('id', 'principal').maybeSingle();
+  if (!error) state.portalSettings = data;
+  return state.portalSettings;
 }
 
 function loading(title) { app.innerHTML = `${header()}<main class="page"><p class="eyebrow">Portal</p><h1>${title}</h1><p class="lead">Cargando tu información…</p></main>${footer()}`; }
@@ -44,7 +63,7 @@ async function projectsView() {
   const { data, error } = await supabase.from('projects').select('*').order('project_date', { ascending: false });
   if (error) return dataError('Proyectos', error);
   const cards = data.length ? data.map(p => `<article class="card"><div class="card-top"><div><p class="eyebrow">${esc(p.code)}</p><h3>${esc(p.title)}</h3></div><span class="status ${p.status === 'en_curso' ? 'progress' : ''}">${status(p.status)}</span></div><p>${esc(p.service)}</p><div class="item-grid"><span>Fecha<strong>${date(p.project_date)}</strong></span><span>Servicio<strong>${esc(p.service)}</strong></span></div><div class="modal-actions">${btn('Información', `projectInfo('${p.id}')`, 'small secondary')}${btn('Pagos', `projectPayments('${p.id}')`, 'small')}</div></article>`).join('') : '<div class="empty">Aún no tienes proyectos registrados en el portal.</div>';
-  app.innerHTML = `${header()}<main class="page"><p class="eyebrow">Portal / Proyectos</p><h1>Proyectos</h1><p class="lead">Consulta la información y trazabilidad de los proyectos que realizamos juntos.</p><div class="card-grid">${cards}</div></main>${footer()}`;
+  app.innerHTML = `${header()}<main class="page">${breadcrumbs([{ label: 'Portal', href: '#inicio' }, { label: 'Proyectos' }])}<h1>Proyectos</h1><p class="lead">Consulta la información y trazabilidad de los proyectos que realizamos juntos.</p><div class="card-grid">${cards}</div></main>${footer()}`;
 }
 
 async function projectInfo(id) {
@@ -65,7 +84,7 @@ async function surveysView() {
   const { data, error } = await supabase.from('csat_responses').select('*').order('submitted_at', { ascending: false });
   if (error) return dataError('Encuestas', error);
   const cards = data.length ? data.map(r => `<article class="card"><div class="card-top"><div><p class="eyebrow">CSAT</p><h3>Encuesta de satisfacción</h3></div><span class="status">Respondida</span></div><p>Completada el ${date(r.submitted_at)}</p><div class="item-grid"><span>Satisfacción<strong>${r.satisfaction} / 5</strong></span><span>Intención<strong>${returnLabel(r.return_intent)}</strong></span></div>${btn('Ver respuesta', `surveyResponse('${r.id}')`, 'small')}</article>`).join('') : '<div class="empty">Aún no hay encuestas respondidas con esta cuenta.</div>';
-  app.innerHTML = `${header()}<main class="page"><p class="eyebrow">Portal / Encuestas</p><h1>Encuestas</h1><p class="lead">Aquí se conserva la trazabilidad de las encuestas que has respondido.</p><section class="section"><div class="card-grid">${cards}</div></section></main>${footer()}`;
+  app.innerHTML = `${header()}<main class="page">${breadcrumbs([{ label: 'Portal', href: '#inicio' }, { label: 'Encuestas' }])}<h1>Encuestas</h1><p class="lead">Aquí se conserva la trazabilidad de las encuestas que has respondido.</p><section class="section"><div class="card-grid">${cards}</div></section></main>${footer()}`;
 }
 
 async function surveyResponse(id) {
@@ -85,7 +104,7 @@ const adminIcon = (type) => ({
   surveys: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>'
 }[type]);
 
-const adminNav = (active) => `<nav class="admin-nav"><a class="${active === 'admin' ? 'active' : ''}" href="#admin">Resumen</a><a class="${active === 'clientes' ? 'active' : ''}" href="#admin-clientes">Clientes</a><a class="${active === 'proyectos' ? 'active' : ''}" href="#admin-proyectos">Proyectos</a><a class="${active === 'pagos' ? 'active' : ''}" href="#admin-pagos">Pagos</a><a class="${active === 'encuestas' ? 'active' : ''}" href="#admin-encuestas">Encuestas</a></nav>`;
+const adminNav = (active) => `<nav class="admin-nav"><a class="${active === 'admin' ? 'active' : ''}" href="#admin">Resumen</a><a class="${active === 'clientes' ? 'active' : ''}" href="#admin-clientes">Clientes</a><a class="${active === 'proyectos' ? 'active' : ''}" href="#admin-proyectos">Proyectos</a><a class="${active === 'pagos' ? 'active' : ''}" href="#admin-pagos">Pagos</a><a class="${active === 'encuestas' ? 'active' : ''}" href="#admin-encuestas">Encuestas</a><a class="${active === 'portal' ? 'active' : ''}" href="#admin-portal">Portal</a></nav>`;
 
 async function adminView() {
   loading('Administración');
@@ -103,7 +122,7 @@ async function adminView() {
 }
 
 function adminModuleShell(section, title, description, body) {
-  app.innerHTML = `${header()}<main class="page admin-page"><p class="eyebrow">Administración</p><h1>${title}</h1><p class="lead">${description}</p>${adminNav(section)}${body}</main>${footer()}`;
+  app.innerHTML = `${header()}<main class="page admin-page">${breadcrumbs([{ label: 'Administración', href: '#admin' }, { label: title }])}<h1>${title}</h1><p class="lead">${description}</p>${adminNav(section)}${body}</main>${footer()}`;
 }
 
 async function adminClientsView() {
@@ -148,6 +167,50 @@ function showClientForm() {
 function togglePortalAccess(enabled) {
   const help = document.querySelector('#portal-access-help');
   if (help) help.textContent = enabled ? 'Se generará una contraseña temporal única para compartirla con el cliente.' : 'Se registrará como contacto; no podrá iniciar sesión.';
+}
+
+async function adminPortalView() {
+  loading('Portal');
+  const settings = await loadPortalSettings(true) || {};
+  const desktopPreview = settings.hero_desktop_url ? `<img class="portal-image-preview" src="${esc(settings.hero_desktop_url)}" alt="Vista previa para escritorio">` : '<div class="image-empty">Aún no hay imagen de escritorio.</div>';
+  const mobilePreview = settings.hero_mobile_url ? `<img class="portal-image-preview" src="${esc(settings.hero_mobile_url)}" alt="Vista previa para móvil">` : '<div class="image-empty">Aún no hay imagen móvil.</div>';
+  const body = `<section class="settings-card"><h2>Imagen principal</h2><p>Esta imagen aparece al ingresar al portal. Puedes actualizar cada versión cuando lo necesites.</p><form class="form portal-settings-form" onsubmit="savePortalAppearance(event)"><div class="image-settings-grid"><label class="field">Imagen escritorio <small>Recomendada: 1600 × 1000 px · JPG, PNG o WebP.</small><input name="hero_desktop" type="file" accept="image/jpeg,image/png,image/webp">${desktopPreview}</label><label class="field">Imagen móvil <small>Recomendada: 1080 × 1350 px · JPG, PNG o WebP.</small><input name="hero_mobile" type="file" accept="image/jpeg,image/png,image/webp">${mobilePreview}</label></div>${btn('Guardar imagen', '', 'primary', 'submit')}</form></section>`;
+  adminModuleShell('portal', 'Personalizar portal', 'Administra la imagen principal que ven los clientes al ingresar.', body);
+}
+
+async function uploadPortalImage(file, variant) {
+  if (!file) return null;
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) throw new Error('Usa una imagen JPG, PNG o WebP.');
+  if (file.size > 5 * 1024 * 1024) throw new Error('Cada imagen debe pesar máximo 5 MB.');
+  const extension = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+  const path = `hero/${variant}-${crypto.randomUUID()}.${extension}`;
+  const { error: uploadError } = await supabase.storage.from('portal-assets').upload(path, file, { cacheControl: '3600', contentType: file.type, upsert: false });
+  if (uploadError) throw uploadError;
+  return supabase.storage.from('portal-assets').getPublicUrl(path).data.publicUrl;
+}
+
+async function savePortalAppearance(event) {
+  event.preventDefault();
+  const form = new FormData(event.target);
+  const desktopFile = form.get('hero_desktop');
+  const mobileFile = form.get('hero_mobile');
+  const hasDesktopFile = desktopFile instanceof File && desktopFile.size > 0;
+  const hasMobileFile = mobileFile instanceof File && mobileFile.size > 0;
+  if (!hasDesktopFile && !hasMobileFile) return modal('Selecciona una imagen', '<p>Elige al menos una imagen para actualizar la portada.</p>');
+  const submit = event.target.querySelector('[type="submit"]');
+  submit.disabled = true; submit.textContent = 'Guardando…';
+  try {
+    const desktopUrl = hasDesktopFile ? await uploadPortalImage(desktopFile, 'desktop') : state.portalSettings?.hero_desktop_url || null;
+    const mobileUrl = hasMobileFile ? await uploadPortalImage(mobileFile, 'mobile') : state.portalSettings?.hero_mobile_url || desktopUrl;
+    const { error } = await supabase.from('portal_settings').upsert({ id: 'principal', hero_desktop_url: desktopUrl, hero_mobile_url: mobileUrl }, { onConflict: 'id' });
+    if (error) throw error;
+    state.portalSettings = { hero_desktop_url: desktopUrl, hero_mobile_url: mobileUrl };
+    modal('Imagen actualizada', '<p>La nueva imagen quedará disponible para los clientes al ingresar al portal.</p>');
+  } catch (error) {
+    modal('No fue posible guardar la imagen', `<p>${esc(errorText(error))}</p>`);
+  } finally {
+    submit.disabled = false; submit.textContent = 'Guardar imagen';
+  }
 }
 
 function showClientEditForm(id) {
@@ -196,10 +259,10 @@ async function adminSurveysView() {
   adminModuleShell('encuestas', 'Encuestas', 'Consulta los resultados de satisfacción y su evolución.', metrics + list);
 }
 
-async function signIn(event) { event.preventDefault(); const email = document.querySelector('#login-email').value.trim(); const password = document.querySelector('#login-password').value; const { error } = await supabase.auth.signInWithPassword({ email, password }); if (error) return loginView('Revisa tu correo y contraseña e inténtalo nuevamente.'); await hydrate(); location.hash = state.profile?.role === 'admin' ? '#admin' : '#inicio'; }
+async function signIn(event) { event.preventDefault(); const email = document.querySelector('#login-email').value.trim(); const password = document.querySelector('#login-password').value; const { error } = await supabase.auth.signInWithPassword({ email, password }); if (error) return loginView('Revisa tu correo y contraseña e inténtalo nuevamente.'); await hydrate(); location.hash = state.session?.user?.user_metadata?.force_password_change ? '#actualizar-clave' : state.profile?.role === 'admin' ? '#admin' : '#inicio'; }
 async function signOut() { await supabase.auth.signOut(); state.session = null; state.profile = null; location.hash = '#login'; }
 async function requestPasswordReset() { const email = document.querySelector('#login-email')?.value.trim(); if (!email) return modal('Ingresa tu correo', '<p>Escribe primero tu correo electrónico en el inicio de sesión.</p>'); const { error } = await supabase.auth.resetPasswordForEmail(email); modal(error ? 'No fue posible enviar el enlace' : 'Revisa tu correo', error ? `<p>${esc(errorText(error))}</p>` : '<p>Si existe una cuenta con ese correo, recibirás un enlace seguro para crear una nueva contraseña.</p>'); }
-async function updatePassword(event) { event.preventDefault(); const password = document.querySelector('#new-password').value; if (password !== document.querySelector('#confirm-password').value) return modal('Las contraseñas no coinciden', '<p>Verifica que ambas contraseñas sean iguales.</p>'); const { error } = await supabase.auth.updateUser({ password }); if (error) return modal('No fue posible guardar la contraseña', `<p>${esc(errorText(error))}</p>`); await hydrate(); location.hash = state.profile?.role === 'admin' ? '#admin' : '#inicio'; }
+async function updatePassword(event) { event.preventDefault(); const password = document.querySelector('#new-password').value; if (password !== document.querySelector('#confirm-password').value) return modal('Las contraseñas no coinciden', '<p>Verifica que ambas contraseñas sean iguales.</p>'); const { error } = await supabase.auth.updateUser({ password, data: { force_password_change: false } }); if (error) return modal('No fue posible guardar la contraseña', `<p>${esc(errorText(error))}</p>`); await hydrate(); location.hash = state.profile?.role === 'admin' ? '#admin' : '#inicio'; }
 async function invokeClientAdmin(body) {
   const { data, error } = await supabase.functions.invoke('create-client-access', { body });
   if (error || data?.error) throw new Error(data?.error || errorText(error));
@@ -257,8 +320,8 @@ function showTemporaryPassword(password, title, message) {
   modal(title, `<p>${esc(message)}</p><div class="credential"><span>Contraseña temporal</span><strong>${esc(password)}</strong></div><p class="credential-note">Guárdala o compártela ahora: no se volverá a mostrar.</p><div class="modal-actions"><button class="button primary" onclick="copyTemporaryPassword('${encodedPassword}', this)">Copiar contraseña <span class="circle">${copyIcon}</span></button><button class="button secondary" onclick="closeTopModal()">Listo</button></div>`, false);
 }
 async function submitCsat(event) { event.preventDefault(); const form = new FormData(event.target); const { error } = await supabase.from('csat_responses').insert({ email: form.get('email').trim().toLowerCase(), satisfaction: Number(form.get('satisfaction')), expectation: form.get('expectation'), return_intent: form.get('return'), improvement: form.get('improvement').trim() || null }); if (error) return modal('No fue posible enviar la encuesta', `<p>${esc(errorText(error))}</p>`); event.target.reset(); modal('¡Gracias por tu tiempo!', '<p>Tu respuesta ha sido registrada. Tu opinión es importante para seguir mejorando.</p>'); }
-async function hydrate() { const { data: { session } } = await supabase.auth.getSession(); state.session = session; state.profile = null; if (session) { const { data } = await supabase.from('profiles').select('role, client_id, clients(first_name)').eq('id', session.user.id).maybeSingle(); state.profile = data; } }
-async function render() { const route = location.hash.replace('#', '').split('?')[0] || 'login'; if (route === 'actualizar-clave') return recoveryView(); if (privateRoutes.has(route)) { if (!state.session) { location.hash = '#login'; return; } if (route.startsWith('admin') && state.profile?.role !== 'admin') { location.hash = '#inicio'; return; } } const view = { login: loginView, inicio: homeView, proyectos: projectsView, encuestas: surveysView, satisfaccion: csatView, admin: adminView, 'admin-clientes': adminClientsView, 'admin-proyectos': adminProjectsView, 'admin-pagos': adminPaymentsView, 'admin-encuestas': adminSurveysView }[route] || loginView; await view(); window.scrollTo(0, 0); }
+async function hydrate() { const { data: { session } } = await supabase.auth.getSession(); state.session = session; state.profile = null; if (session) { const { data } = await supabase.from('profiles').select('role, client_id').eq('id', session.user.id).maybeSingle(); state.profile = data; } }
+async function render() { const route = location.hash.replace('#', '').split('?')[0] || 'login'; if (route === 'actualizar-clave') return recoveryView(); if (state.session?.user?.user_metadata?.force_password_change) { location.hash = '#actualizar-clave'; return; } if (privateRoutes.has(route)) { if (!state.session) { location.hash = '#login'; return; } if (route.startsWith('admin') && state.profile?.role !== 'admin') { location.hash = '#inicio'; return; } } const view = { login: loginView, inicio: homeView, proyectos: projectsView, encuestas: surveysView, satisfaccion: csatView, admin: adminView, 'admin-clientes': adminClientsView, 'admin-proyectos': adminProjectsView, 'admin-pagos': adminPaymentsView, 'admin-encuestas': adminSurveysView, 'admin-portal': adminPortalView }[route] || loginView; await view(); window.scrollTo(0, 0); }
 function modal(title, content, showClose = true) { document.body.insertAdjacentHTML('beforeend', `<div class="modal-backdrop" onclick="if(event.target===this)this.remove()"><section class="modal"><h2>${title}</h2><div>${content}</div>${showClose ? '<div class="modal-actions"><button class="button" onclick="this.closest(\'.modal-backdrop\').remove()">Cerrar <span class="circle">×</span></button></div>' : ''}</section></div>`); }
 function closeTopModal() { document.querySelector('.modal-backdrop:last-of-type')?.remove(); }
 function copyProjectLink(value, element) { navigator.clipboard?.writeText(decodeURIComponent(value)); element.innerHTML = 'Enlace copiado <span class="circle">✓</span>'; }
@@ -269,7 +332,7 @@ function returnLabel(v) { return ({ si: 'Sí', tal_vez: 'Tal vez', no: 'No' })[v
 function date(v) { return v ? new Intl.DateTimeFormat('es-CO', { dateStyle: 'medium' }).format(new Date(`${v.slice(0, 10)}T12:00:00`)) : 'Sin fecha'; }
 function money(v) { return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v); }
 
-Object.assign(window, { signIn, signOut, requestPasswordReset, updatePassword, submitCsat, projectInfo, projectPayments, surveyResponse, copyProjectLink, showClientForm, togglePortalAccess, createPortalClient, updatePortalClient, showClientEditForm, confirmClientAction, runClientAction, changeClientPage, closeTopModal, copyTemporaryPassword });
+Object.assign(window, { signIn, signOut, requestPasswordReset, updatePassword, submitCsat, projectInfo, projectPayments, surveyResponse, copyProjectLink, showClientForm, togglePortalAccess, createPortalClient, updatePortalClient, showClientEditForm, confirmClientAction, runClientAction, changeClientPage, closeTopModal, copyTemporaryPassword, savePortalAppearance });
 supabase.auth.onAuthStateChange((event) => { if (event === 'PASSWORD_RECOVERY') location.hash = '#actualizar-clave'; if (event === 'SIGNED_OUT') { state.session = null; state.profile = null; } });
 window.addEventListener('hashchange', render);
 await hydrate();
