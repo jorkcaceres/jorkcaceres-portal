@@ -53,6 +53,7 @@ h3 { font-size: 1.22rem; margin-bottom: 6px; }
 .field textarea { min-height: 112px; resize: vertical; }
 .form-row { display: flex; justify-content: space-between; align-items: center; font-size: .94rem; }
 .form-message { margin: -3px 0 0; color: #a32929; font-weight: 600; }
+.turnstile-widget { min-height: 65px; margin: 4px 0; }
 .link-value { overflow-wrap: anywhere; }
 .text-link { color: var(--navy); font-weight: 700; background: none; border: 0; padding: 0; }
 .login-aside { background: var(--mist); padding: clamp(28px, 5vw, 70px); display: grid; gap: 18px; align-content: center; }
