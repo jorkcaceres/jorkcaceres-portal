@@ -123,7 +123,21 @@ fieldset.survey-question { min-inline-size: 0; margin: 0; padding: 25px 0; borde
 .admin-module-actions { display: flex; margin: 0 0 20px; }
 .settings-card { padding: clamp(24px, 4vw, 38px); border: 1px solid var(--line); border-radius: 20px; background: var(--white); }
 .settings-card > p { max-width: 680px; color: var(--muted); line-height: 1.4; }
+.settings-accordions { display: grid; gap: 14px; }
+.settings-card summary { display: flex; align-items: center; justify-content: space-between; cursor: pointer; list-style: none; }
+.settings-card summary::-webkit-details-marker { display: none; }
+.settings-card summary::after { content: '+'; color: var(--navy); font-size: 1.55rem; font-weight: 500; }
+.settings-card[open] summary::after { content: '−'; }
+.settings-card summary span { display: grid; gap: 5px; }
+.settings-card summary small { color: var(--muted); font-weight: 400; }
+.accordion-content { margin-top: 24px; }
 .portal-settings-form { margin-top: 24px; }
+.service-form { display: flex; align-items: end; gap: 12px; margin: 0 0 18px; }
+.service-form .field { flex: 1; }
+.service-list { display: grid; gap: 10px; }
+.service-item { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; }
+.service-item > div { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.readonly-field { min-height: 48px; display: flex; align-items: center; padding: 14px 15px; border: 1px solid var(--line); border-radius: 10px; background: var(--mist); color: var(--muted); font-weight: 500; line-height: 1.25; }
 .image-settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
 .portal-image-preview, .image-empty { width: 100%; min-height: 180px; margin-top: 8px; border: 1px solid var(--line); border-radius: 14px; background: var(--mist); object-fit: cover; }
 .image-empty { display: grid; place-items: center; padding: 20px; color: var(--muted); text-align: center; }
@@ -170,6 +184,9 @@ fieldset.survey-question { min-inline-size: 0; margin: 0; padding: 25px 0; borde
   .card-grid { grid-template-columns: 1fr; }
   .admin-grid, .metric-grid { grid-template-columns: 1fr; }
   .image-settings-grid { grid-template-columns: 1fr; }
+  .service-form { align-items: stretch; flex-direction: column; }
+  .service-form .button { align-self: flex-start; }
+  .service-item { align-items: flex-start; flex-direction: column; }
   .admin-list-card { flex-direction: column; }
   .client-list-card { align-items: stretch; }
   .pagination { flex-wrap: wrap; }
