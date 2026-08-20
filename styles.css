@@ -217,6 +217,8 @@ fieldset.survey-question { min-inline-size: 0; margin: 0; padding: 25px 0; borde
   .modal-backdrop { align-items: center; padding: 14px; overflow-y: auto; }
   .modal { width: calc(100vw - 28px); max-width: calc(100vw - 28px); max-height: calc(100dvh - 28px); padding: 22px; }
   .modal input[type="date"] { width: 100%; max-width: 100%; }
+  .modal [data-payment-date] { width: 100%; max-width: 100%; overflow: hidden; }
+  .modal [data-payment-date] input[type="date"] { max-inline-size: calc(100% - 1px); }
   .portal-image-preview { display: block; width: min(100%, 250px); height: 220px; min-height: 0; margin-inline: auto; object-fit: cover; object-position: center; }
   .activity-indicator { left: 14px; bottom: 14px; }
   .payment-detail-card { grid-template-areas: "code status" "summary summary" "action action"; gap: 8px; }
