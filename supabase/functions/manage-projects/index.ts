@@ -34,7 +34,6 @@ export default {
     const body = await request.json()
     const action = textValue(body.action)
     const clientId = textValue(body.client_id)
-    const code = textValue(body.code).toUpperCase()
     const title = textValue(body.title)
     const service = textValue(body.service)
     const status = textValue(body.status)
@@ -44,8 +43,8 @@ export default {
     const observations = textValue(body.observations) || null
     const validStatuses = ['planificado', 'en_curso', 'pausado', 'finalizado']
 
-    if (!clientId || !code || !title || !service || !startDate || !validStatuses.includes(status)) {
-      return json({ error: 'Completa cliente, código, título, servicio, estado y fecha de inicio.' }, 400)
+    if (!clientId || !title || !service || !startDate || !validStatuses.includes(status)) {
+      return json({ error: 'Completa cliente, título, servicio, estado y fecha de inicio.' }, 400)
     }
     if (endDate && endDate < startDate) return json({ error: 'La fecha de finalización no puede ser anterior a la fecha de inicio.' }, 400)
     if (sharedFolderUrl) {
@@ -55,11 +54,11 @@ export default {
     const { data: client } = await ctx.supabaseAdmin.from('clients').select('id').eq('id', clientId).maybeSingle()
     if (!client) return json({ error: 'El cliente seleccionado no existe.' }, 404)
 
-    const values = { client_id: clientId, code, title, service, status, project_date: startDate, start_date: startDate, end_date: endDate, shared_folder_url: sharedFolderUrl, observations }
+    const values = { client_id: clientId, title, service, status, project_date: startDate, start_date: startDate, end_date: endDate, shared_folder_url: sharedFolderUrl, observations }
 
     if (action === 'create') {
-      const { data, error } = await ctx.supabaseAdmin.from('projects').insert(values).select('id').single()
-      if (error) return json({ error: error.code === '23505' ? 'Ya existe un proyecto con ese código.' : 'No fue posible crear el proyecto.' }, 400)
+      const { data, error } = await ctx.supabaseAdmin.from('projects').insert(values).select('id,code').single()
+      if (error) return json({ error: 'No fue posible crear el proyecto.' }, 400)
       return json({ project: data })
     }
 
@@ -69,7 +68,7 @@ export default {
       const { data: existingProject } = await ctx.supabaseAdmin.from('projects').select('id').eq('id', projectId).maybeSingle()
       if (!existingProject) return json({ error: 'El proyecto no existe o ya fue eliminado.' }, 404)
       const { error } = await ctx.supabaseAdmin.from('projects').update(values).eq('id', projectId)
-      if (error) return json({ error: error.code === '23505' ? 'Ya existe un proyecto con ese código.' : 'No fue posible actualizar el proyecto.' }, 400)
+      if (error) return json({ error: 'No fue posible actualizar el proyecto.' }, 400)
       return json({ ok: true })
     }
 
