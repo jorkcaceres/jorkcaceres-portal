@@ -3,13 +3,13 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.0';
 const app = document.querySelector('#app');
 const logo = 'assets/jorkcaceres-horizontal-negro.png';
 const supabase = createClient('https://zfzsigdyycgaqvbauffk.supabase.co', 'sb_publishable_K5khETTDgbkAmAOeiDg2Tw_gKfdxBeq');
-const state = { session: null, profile: null, clientPage: 1, projectPage: 1, paymentPage: 1, clients: new Map(), projects: new Map(), payments: new Map(), portalSettings: null, services: [], paymentTypes: [] };
-const privateRoutes = new Set(['inicio', 'proyectos', 'encuestas', 'admin', 'admin-clientes', 'admin-proyectos', 'admin-pagos', 'admin-encuestas', 'admin-portal']);
+const state = { session: null, profile: null, clientPage: 1, projectPage: 1, paymentPage: 1, servicePage: 1, clients: new Map(), projects: new Map(), payments: new Map(), clientServices: new Map(), portalSettings: null, services: [], paymentTypes: [], recurrences: [] };
+const privateRoutes = new Set(['inicio', 'proyectos', 'servicios', 'encuestas', 'admin', 'admin-clientes', 'admin-proyectos', 'admin-servicios', 'admin-pagos', 'admin-encuestas', 'admin-portal']);
 const helpUrl = 'https://wa.me/573243062809?text=Hola%2C+necesito+ayuda.+Vengo+del+portal+de+Jorkc%C3%A1ceres';
 const turnstileSiteKey = '0x4AAAAAAEWb66YwTWh3cmmT';
 const turnstileScriptUrl = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
 const turnstileWidgets = new Map();
-const footer = () => '<footer class="footer">© 2026 Jorkcáceres. Portal para clientes. V1.0</footer>';
+const footer = () => '<footer class="footer">© 2026 Jorkcáceres. Portal para clientes. V1.1</footer>';
 let activityCount = 0;
 const arrowIcon = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7"/><path d="M8 7h9v9"/></svg>';
 const backIcon = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/><path d="M9 12h12"/></svg>';
@@ -17,6 +17,7 @@ const copyIcon = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke
 const cardIcons = {
   projects: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>',
   surveys: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>',
+  services: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M3 12h18"/><circle cx="12" cy="12" r="8"/></svg>',
 };
 const btn = (label, action, classes = '', type = 'button') => `<button type="${type}" class="button ${classes}" onclick="${action}">${label}<span class="circle">${arrowIcon}</span></button>`;
 const esc = (value = '') => String(value).replace(/[&<>'"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c]));
@@ -49,10 +50,16 @@ function recoveryView() {
 
 async function homeView() {
   const email = state.session?.user?.email || 'bienvenido';
-  const [settings, firstName] = await Promise.all([loadPortalSettings(), loadClientFirstName()]);
+  const [settings, firstName, clientServices] = await Promise.all([loadPortalSettings(), loadClientFirstName(), loadClientServices()]);
   const heroImage = settings?.hero_desktop_url ? `<picture class="hero-image"><source media="(max-width: 760px)" srcset="${esc(settings.hero_mobile_url || settings.hero_desktop_url)}"><img src="${esc(settings.hero_desktop_url)}" alt="Imagen principal del Portal Jorkcáceres"></picture>` : '<div class="hero-mark" aria-hidden="true">J</div>';
   const greeting = firstName || email;
-  app.innerHTML = `${header()}<main class="page"><section class="hero"><div><p class="eyebrow">Hola, ${esc(greeting)}</p><h1>Tu espacio de trabajo con Jorkcáceres.</h1><p class="lead">Aquí encontrarás información relevante de los proyectos que realizamos juntos y las encuestas que has respondido.</p></div>${heroImage}</section><section class="section"><div class="section-heading"><div><p class="eyebrow">Accesos</p><h2>¿Qué quieres consultar?</h2></div></div><div class="card-grid"><article class="card"><div class="card-icon">${cardIcons.projects}</div><h3>Proyectos</h3><p>Revisa el estado de tus proyectos, sus entregables, observaciones y pagos.</p>${btn('Ver proyectos', "location.hash='#proyectos'")}</article><article class="card"><div class="card-icon">${cardIcons.surveys}</div><h3>Encuestas</h3><p>Consulta las encuestas que has realizado y los resultados disponibles.</p>${btn('Ver encuestas', "location.hash='#encuestas'")}</article></div></section></main>${footer()}`;
+  const alertDays = Number(settings?.service_alert_days || 30);
+  const alerts = clientServices.filter(service => {
+    const renewal = openRenewal(service);
+    return renewal && renewalRemainingDays(renewal.renewal_date) <= alertDays;
+  });
+  const alertSection = alerts.length ? `<section class="section"><div class="section-heading"><div><p class="eyebrow">Atención</p><h2>Próximas renovaciones</h2><p>Tienes servicios que requieren renovación en los próximos ${alertDays} días.</p></div></div><div class="card-grid">${alerts.map(service => { const renewal = openRenewal(service); const days = renewalRemainingDays(renewal.renewal_date); return `<article class="card"><div class="card-top"><div><p class="eyebrow">Servicio</p><h3>${esc(service.name)}</h3></div><span class="status ${renewalStatusClass(renewal, alertDays)}">${renewalStatus(renewal, alertDays)}</span></div><p>Renovación: ${date(renewal.renewal_date)} · ${days < 0 ? `Venció hace ${Math.abs(days)} días` : days === 0 ? 'Vence hoy' : `${days} días restantes`}</p>${service.amount !== null ? `<p><strong>${money(service.amount)}</strong></p>` : ''}${btn('Ver servicio', "location.hash='#servicios'", 'small secondary')}</article>`; }).join('')}</div></section>` : '';
+  app.innerHTML = `${header()}<main class="page"><section class="hero"><div><p class="eyebrow">Hola, ${esc(greeting)}</p><h1>Tu espacio de trabajo con Jorkcáceres.</h1><p class="lead">Aquí encontrarás información relevante de los proyectos que realizamos juntos, tus servicios y las encuestas que has respondido.</p></div>${heroImage}</section>${alertSection}<section class="section"><div class="section-heading"><div><p class="eyebrow">Accesos</p><h2>¿Qué quieres consultar?</h2></div></div><div class="card-grid"><article class="card"><div class="card-icon">${cardIcons.projects}</div><h3>Proyectos</h3><p>Revisa el estado de tus proyectos, sus entregables, observaciones y pagos.</p>${btn('Ver proyectos', "location.hash='#proyectos'")}</article><article class="card"><div class="card-icon">${cardIcons.services}</div><h3>Servicios</h3><p>Consulta tus renovaciones, estados y comprobantes disponibles.</p>${btn('Ver servicios', "location.hash='#servicios'")}</article><article class="card"><div class="card-icon">${cardIcons.surveys}</div><h3>Encuestas</h3><p>Consulta las encuestas que has realizado y los resultados disponibles.</p>${btn('Ver encuestas', "location.hash='#encuestas'")}</article></div></section></main>${footer()}`;
 }
 
 async function loadClientFirstName() {
@@ -64,7 +71,7 @@ async function loadClientFirstName() {
 
 async function loadPortalSettings(force = false) {
   if (state.portalSettings && !force) return state.portalSettings;
-  const { data, error } = await supabase.from('portal_settings').select('hero_desktop_url, hero_mobile_url').eq('id', 'principal').maybeSingle();
+  const { data, error } = await supabase.from('portal_settings').select('hero_desktop_url, hero_mobile_url, service_alert_days').eq('id', 'principal').maybeSingle();
   if (!error) state.portalSettings = data;
   return state.portalSettings;
 }
@@ -129,6 +136,63 @@ async function projectPayments(id) {
   modal('Pagos del proyecto', data.length ? `<div class="payment-detail-list">${cards}</div>` : '<p>No hay pagos registrados para este proyecto.</p>');
 }
 
+async function loadClientServices() {
+  const { data, error } = await supabase.from('client_services').select('id,name,amount,observations,active,portal_service_recurrences(name),service_renewals(id,renewal_date,status,receipt_path,renewed_at)').eq('active', true).order('created_at', { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+function openRenewal(service) {
+  return (service.service_renewals || []).find(renewal => renewal.status === 'programado') || null;
+}
+
+function colombiaToday() {
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
+  const value = Object.fromEntries(parts.filter(part => part.type !== 'literal').map(part => [part.type, part.value]));
+  return `${value.year}-${value.month}-${value.day}`;
+}
+
+function renewalRemainingDays(value) {
+  const milliseconds = 24 * 60 * 60 * 1000;
+  return Math.round((Date.parse(`${value}T12:00:00Z`) - Date.parse(`${colombiaToday()}T12:00:00Z`)) / milliseconds);
+}
+
+function renewalStatus(renewal, alertDays = 30) {
+  if (!renewal) return 'Sin programar';
+  if (renewal.status === 'renovado') return 'Renovado';
+  const days = renewalRemainingDays(renewal.renewal_date);
+  if (days < 0) return 'Vencido';
+  if (days <= alertDays) return 'Próximo a vencer';
+  return 'Programado';
+}
+
+function renewalStatusClass(renewal, alertDays = 30) {
+  return renewalStatus(renewal, alertDays) === 'Renovado' ? '' : 'progress';
+}
+
+async function servicesView() {
+  loading('Servicios');
+  try {
+    const [services, settings] = await Promise.all([loadClientServices(), loadPortalSettings()]);
+    const alertDays = Number(settings?.service_alert_days || 30);
+    const cards = services.length ? services.map(service => {
+      const renewal = openRenewal(service);
+      const recurrence = service.portal_service_recurrences?.name || 'Sin recurrencia';
+      const remaining = renewal ? renewalRemainingDays(renewal.renewal_date) : null;
+      return `<article class="card"><div class="card-top"><div><p class="eyebrow">${esc(recurrence)}</p><h3>${esc(service.name)}</h3></div>${renewal ? `<span class="status ${renewalStatusClass(renewal, alertDays)}">${renewalStatus(renewal, alertDays)}</span>` : ''}</div><p>${renewal ? `Próxima renovación: ${date(renewal.renewal_date)}${remaining !== null ? ` · ${remaining < 0 ? `Venció hace ${Math.abs(remaining)} días` : remaining === 0 ? 'Vence hoy' : `${remaining} días restantes`}` : ''}` : 'No hay una renovación programada.'}</p><div class="item-grid"><span>Valor<strong>${service.amount === null ? 'Por definir' : money(service.amount)}</strong></span><span>Recurrencia<strong>${esc(recurrence)}</strong></span></div>${btn('Ver detalles', `serviceInfo('${service.id}')`, 'small secondary')}</article>`;
+    }).join('') : '<div class="empty">Aún no tienes servicios activos registrados en el portal.</div>';
+    app.innerHTML = `${header()}<main class="page">${breadcrumbs([{ label: 'Portal', href: '#inicio' }, { label: 'Servicios' }])}<h1>Servicios</h1><p class="lead">Consulta las renovaciones de tus servicios, sus estados y comprobantes disponibles.</p><div class="card-grid">${cards}</div></main>${footer()}`;
+  } catch (error) { dataError('Servicios', error); }
+}
+
+async function serviceInfo(id) {
+  const { data: service, error } = await supabase.from('client_services').select('id,name,amount,observations,portal_service_recurrences(name),service_renewals(id,renewal_date,status,receipt_path,renewed_at)').eq('id', id).single();
+  if (error) return modal('No fue posible abrir el servicio', `<p>${esc(errorText(error))}</p>`);
+  const history = (service.service_renewals || []).sort((a, b) => String(b.renewal_date).localeCompare(String(a.renewal_date)));
+  const rows = history.map(renewal => `<article class="payment-detail-card"><span class="payment-code">${date(renewal.renewal_date)}</span><span class="status ${renewalStatusClass(renewal)}">${renewalStatus(renewal)}</span><p class="payment-summary">${renewal.status === 'renovado' ? `Renovado el ${date(renewal.renewed_at)}` : 'Renovación pendiente de confirmación'}</p>${renewal.receipt_path ? btn('Ver comprobante', `openServiceReceipt('${esc(renewal.receipt_path)}')`, 'small secondary') : ''}</article>`).join('');
+  modal(esc(service.name), `<p><strong>Recurrencia:</strong> ${esc(service.portal_service_recurrences?.name || 'No registrada')}</p><p><strong>Valor:</strong> ${service.amount === null ? 'Por definir' : money(service.amount)}</p><p><strong>Observaciones:</strong><br>${esc(service.observations || 'No hay observaciones registradas.')}</p><p><strong>Renovaciones</strong></p><div class="payment-detail-list">${rows || '<p>No hay renovaciones registradas.</p>'}</div>`);
+}
+
 async function surveysView() {
   loading('Encuestas');
   const { data, error } = await supabase.from('csat_responses').select('*').order('submitted_at', { ascending: false });
@@ -153,21 +217,23 @@ const adminIcon = (type) => ({
   clients: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
   projects: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 8h10M7 12h10M7 16h6"/></svg>',
   payments: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h3"/></svg>',
+  services: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M3 12h18"/><circle cx="12" cy="12" r="8"/></svg>',
   surveys: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>'
 }[type]);
 
-const adminNav = (active) => `<nav class="admin-nav"><a class="${active === 'admin' ? 'active' : ''}" href="#admin">Resumen</a><a class="${active === 'clientes' ? 'active' : ''}" href="#admin-clientes">Clientes</a><a class="${active === 'proyectos' ? 'active' : ''}" href="#admin-proyectos">Proyectos</a><a class="${active === 'pagos' ? 'active' : ''}" href="#admin-pagos">Pagos</a><a class="${active === 'encuestas' ? 'active' : ''}" href="#admin-encuestas">Encuestas</a><a class="${active === 'portal' ? 'active' : ''}" href="#admin-portal">Portal</a></nav>`;
+const adminNav = (active) => `<nav class="admin-nav"><a class="${active === 'admin' ? 'active' : ''}" href="#admin">Resumen</a><a class="${active === 'clientes' ? 'active' : ''}" href="#admin-clientes">Clientes</a><a class="${active === 'proyectos' ? 'active' : ''}" href="#admin-proyectos">Proyectos</a><a class="${active === 'servicios' ? 'active' : ''}" href="#admin-servicios">Servicios</a><a class="${active === 'pagos' ? 'active' : ''}" href="#admin-pagos">Pagos</a><a class="${active === 'encuestas' ? 'active' : ''}" href="#admin-encuestas">Encuestas</a><a class="${active === 'portal' ? 'active' : ''}" href="#admin-portal">Portal</a></nav>`;
 
 async function adminView() {
   loading('Administración');
-  const queries = ['clients', 'projects', 'project_payments', 'csat_responses'].map(table => supabase.from(table).select('*', { count: 'exact', head: true }));
-  const [clients, projects, payments, surveys] = await Promise.all(queries);
-  const error = [clients, projects, payments, surveys].find(result => result.error)?.error;
+  const queries = ['clients', 'projects', 'client_services', 'project_payments', 'csat_responses'].map(table => supabase.from(table).select('*', { count: 'exact', head: true }));
+  const [clients, projects, services, projectPayments, surveys, serviceRenewals] = await Promise.all([...queries, supabase.from('service_renewals').select('*', { count: 'exact', head: true }).eq('status', 'renovado')]);
+  const error = [clients, projects, services, projectPayments, serviceRenewals, surveys].find(result => result.error)?.error;
   if (error) return dataError('Administración', error);
   const entries = [
     ['clients', 'Clientes', 'Organiza la información y el acceso de cada cliente.', clients.count || 0, '#admin-clientes'],
     ['projects', 'Proyectos', 'Consulta los proyectos, estados y entregables registrados.', projects.count || 0, '#admin-proyectos'],
-    ['payments', 'Pagos', 'Mantén la trazabilidad de pagos y comprobantes.', payments.count || 0, '#admin-pagos'],
+    ['services', 'Servicios', 'Gestiona renovaciones recurrentes y sus comprobantes.', services.count || 0, '#admin-servicios'],
+    ['payments', 'Pagos', 'Consulta cobros de proyectos y renovaciones.', (projectPayments.count || 0) + (serviceRenewals.count || 0), '#admin-pagos'],
     ['surveys', 'Encuestas', 'Revisa respuestas y métricas de satisfacción.', surveys.count || 0, '#admin-encuestas']
   ];
   app.innerHTML = `${header()}<main class="page admin-page"><p class="eyebrow">Administración</p><h1>Gestión del portal.</h1><p class="lead">Centraliza la relación con tus clientes y la información de cada servicio.</p>${adminNav('admin')}<section class="admin-grid">${entries.map(([type, title, description, total, target]) => `<article class="admin-card"><div class="admin-card-top"><span class="admin-icon">${adminIcon(type)}</span><strong class="admin-count">${total}</strong></div><h2>${title}</h2><p>${description}</p>${btn(`Gestionar ${title.toLowerCase()}`, `location.hash='${target}'`, 'secondary')}</article>`).join('')}</section></main>${footer()}`;
@@ -223,13 +289,14 @@ function togglePortalAccess(enabled) {
 
 async function adminPortalView() {
   loading('Portal');
-  const [loadedSettings, services, paymentTypes] = await Promise.all([loadPortalSettings(true), loadPortalServices(true), loadPortalPaymentTypes(true)]);
+  const [loadedSettings, services, paymentTypes, recurrences] = await Promise.all([loadPortalSettings(true), loadPortalServices(true), loadPortalPaymentTypes(true), loadServiceRecurrences(true)]);
   const settings = loadedSettings || {};
   const desktopPreview = settings.hero_desktop_url ? `<img class="portal-image-preview" src="${esc(settings.hero_desktop_url)}" alt="Vista previa para escritorio">` : '<div class="image-empty">Aún no hay imagen de escritorio.</div>';
   const mobilePreview = settings.hero_mobile_url ? `<img class="portal-image-preview" src="${esc(settings.hero_mobile_url)}" alt="Vista previa para móvil">` : '<div class="image-empty">Aún no hay imagen móvil.</div>';
   const serviceList = services.length ? `<div class="service-list">${services.map(service => `<article class="service-item"><div><strong>${esc(service.name)}</strong><span class="status ${service.active ? '' : 'progress'}">${service.active ? 'Activo' : 'Inactivo'}</span></div>${btn(service.active ? 'Inactivar' : 'Activar', `setPortalServiceStatus('${service.id}', ${!service.active})`, 'small secondary')}</article>`).join('')}</div>` : '<div class="empty">Aún no hay servicios configurados.</div>';
   const paymentTypeList = paymentTypes.length ? `<div class="service-list">${paymentTypes.map(type => `<article class="service-item"><div><strong>${esc(type.name)}</strong><span class="status ${type.active ? '' : 'progress'}">${type.active ? 'Activo' : 'Inactivo'}</span></div>${btn(type.active ? 'Inactivar' : 'Activar', `setPortalPaymentTypeStatus('${type.id}', ${!type.active})`, 'small secondary')}</article>`).join('')}</div>` : '<div class="empty">Aún no hay tipos de pago configurados.</div>';
-  const body = `<div class="settings-accordions"><details class="settings-card"><summary><span><strong>Imagen principal</strong><small>Personaliza la imagen de bienvenida del portal.</small></span></summary><div class="accordion-content"><form class="form portal-settings-form" onsubmit="savePortalAppearance(event)"><div class="image-settings-grid"><label class="field">Imagen escritorio <small>Proporción recomendada: 4:5 vertical (por ejemplo, 1600 × 2000 px) · JPG, PNG o WebP.</small><input name="hero_desktop" type="file" accept="image/jpeg,image/png,image/webp">${desktopPreview}</label><label class="field">Imagen móvil <small>Proporción recomendada: 4:5 vertical (por ejemplo, 1080 × 1350 px) · JPG, PNG o WebP.</small><input name="hero_mobile" type="file" accept="image/jpeg,image/png,image/webp">${mobilePreview}</label></div>${btn('Guardar imagen', '', 'primary', 'submit')}</form></div></details><details class="settings-card"><summary><span><strong>Servicios disponibles</strong><small>Define los servicios que podrás asociar a los proyectos.</small></span></summary><div class="accordion-content"><form class="service-form" onsubmit="addPortalService(event)"><label class="field">Nuevo servicio<input name="service_name" placeholder="Nombre del servicio" required></label>${btn('Agregar servicio', '', 'primary', 'submit')}</form>${serviceList}</div></details><details class="settings-card"><summary><span><strong>Tipos de pago</strong><small>Define los tipos de pago que podrás registrar en los proyectos.</small></span></summary><div class="accordion-content"><form class="service-form" onsubmit="addPortalPaymentType(event)"><label class="field">Nuevo tipo de pago<input name="payment_type_name" placeholder="Por ejemplo: Pago mensual" required></label>${btn('Agregar tipo', '', 'primary', 'submit')}</form>${paymentTypeList}</div></details></div>`;
+  const recurrenceList = recurrences.length ? `<div class="service-list">${recurrences.map(recurrence => `<article class="service-item"><div><strong>${esc(recurrence.name)}</strong><small>Cada ${recurrence.interval_value} ${recurrence.interval_unit}</small><span class="status ${recurrence.active ? '' : 'progress'}">${recurrence.active ? 'Activa' : 'Inactiva'}</span></div>${btn(recurrence.active ? 'Inactivar' : 'Activar', `setServiceRecurrenceStatus('${recurrence.id}', ${!recurrence.active})`, 'small secondary')}</article>`).join('')}</div>` : '<div class="empty">Aún no hay recurrencias configuradas.</div>';
+  const body = `<div class="settings-accordions"><details class="settings-card"><summary><span><strong>Imagen principal</strong><small>Personaliza la imagen de bienvenida del portal.</small></span></summary><div class="accordion-content"><form class="form portal-settings-form" onsubmit="savePortalAppearance(event)"><div class="image-settings-grid"><label class="field">Imagen escritorio <small>Proporción recomendada: 4:5 vertical (por ejemplo, 1600 × 2000 px) · JPG, PNG o WebP.</small><input name="hero_desktop" type="file" accept="image/jpeg,image/png,image/webp">${desktopPreview}</label><label class="field">Imagen móvil <small>Proporción recomendada: 4:5 vertical (por ejemplo, 1080 × 1350 px) · JPG, PNG o WebP.</small><input name="hero_mobile" type="file" accept="image/jpeg,image/png,image/webp">${mobilePreview}</label></div>${btn('Guardar imagen', '', 'primary', 'submit')}</form></div></details><details class="settings-card"><summary><span><strong>Servicios disponibles</strong><small>Define los servicios que podrás asociar a los proyectos.</small></span></summary><div class="accordion-content"><form class="service-form" onsubmit="addPortalService(event)"><label class="field">Nuevo servicio<input name="service_name" placeholder="Nombre del servicio" required></label>${btn('Agregar servicio', '', 'primary', 'submit')}</form>${serviceList}</div></details><details class="settings-card"><summary><span><strong>Tipos de pago</strong><small>Define los tipos de pago que podrás registrar en los proyectos.</small></span></summary><div class="accordion-content"><form class="service-form" onsubmit="addPortalPaymentType(event)"><label class="field">Nuevo tipo de pago<input name="payment_type_name" placeholder="Por ejemplo: Pago mensual" required></label>${btn('Agregar tipo', '', 'primary', 'submit')}</form>${paymentTypeList}</div></details><details class="settings-card"><summary><span><strong>Recurrencias de servicios</strong><small>Administra cómo se programa cada renovación.</small></span></summary><div class="accordion-content"><form class="service-form" onsubmit="addServiceRecurrence(event)"><label class="field">Nombre de la recurrencia<input name="recurrence_name" placeholder="Por ejemplo: Trimestral" required></label><div class="form-columns"><label class="field">Cada<input name="interval_value" type="number" min="1" max="120" value="1" required></label><label class="field">Unidad<select name="interval_unit" required><option value="meses">Meses</option><option value="anios">Años</option><option value="dias">Días</option></select></label></div>${btn('Agregar recurrencia', '', 'primary', 'submit')}</form>${recurrenceList}</div></details><details class="settings-card"><summary><span><strong>Alertas de renovación</strong><small>Define con cuánta anticipación el cliente verá la alerta.</small></span></summary><div class="accordion-content"><form class="service-form" onsubmit="saveServiceAlertSettings(event)"><label class="field">Días de anticipación<input name="service_alert_days" type="number" min="1" max="365" value="${esc(settings.service_alert_days || 30)}" required></label>${btn('Guardar alerta', '', 'primary', 'submit')}</form></div></details></div>`;
   adminModuleShell('portal', 'Personalizar portal', 'Administra la imagen principal que ven los clientes al ingresar.', body);
 }
 
@@ -304,6 +371,48 @@ async function setPortalPaymentTypeStatus(id, active) {
   await adminPortalView();
 }
 
+async function addServiceRecurrence(event) {
+  event.preventDefault();
+  const form = new FormData(event.target);
+  const name = String(form.get('recurrence_name') || '').trim();
+  const intervalValue = Number(form.get('interval_value'));
+  const intervalUnit = String(form.get('interval_unit') || '');
+  const submit = event.target.querySelector('[type="submit"]');
+  if (!name || !Number.isInteger(intervalValue) || intervalValue < 1 || intervalValue > 120 || !['dias', 'meses', 'anios'].includes(intervalUnit)) return;
+  submit.disabled = true; submit.textContent = 'Agregando…';
+  try {
+    const { error } = await supabase.from('portal_service_recurrences').insert({ name, interval_value: intervalValue, interval_unit: intervalUnit });
+    if (error) throw error;
+    state.recurrences = [];
+    await adminPortalView();
+  } catch (error) {
+    submit.disabled = false; submit.textContent = 'Agregar recurrencia';
+    modal('No fue posible agregar la recurrencia', `<p>${esc(error.code === '23505' ? 'Esa recurrencia ya está registrada.' : errorText(error))}</p>`);
+  }
+}
+
+async function setServiceRecurrenceStatus(id, active) {
+  const { error } = await supabase.from('portal_service_recurrences').update({ active }).eq('id', id);
+  if (error) return modal('No fue posible actualizar la recurrencia', `<p>${esc(errorText(error))}</p>`);
+  state.recurrences = [];
+  await adminPortalView();
+}
+
+async function saveServiceAlertSettings(event) {
+  event.preventDefault();
+  const days = Number(new FormData(event.target).get('service_alert_days'));
+  if (!Number.isInteger(days) || days < 1 || days > 365) return modal('Valor no válido', '<p>Indica entre 1 y 365 días de anticipación.</p>');
+  const submit = event.target.querySelector('[type="submit"]');
+  submit.disabled = true; submit.textContent = 'Guardando…';
+  try {
+    const { error } = await supabase.from('portal_settings').upsert({ id: 'principal', service_alert_days: days }, { onConflict: 'id' });
+    if (error) throw error;
+    state.portalSettings = { ...(state.portalSettings || {}), service_alert_days: days };
+    modal('Alertas actualizadas', `<p>Los clientes verán alertas de renovación ${days} días antes de la fecha programada.</p>`);
+  } catch (error) { modal('No fue posible guardar la alerta', `<p>${esc(errorText(error))}</p>`); }
+  finally { submit.disabled = false; submit.textContent = 'Guardar alerta'; }
+}
+
 async function uploadPortalImage(file, variant) {
   if (!file) return null;
   if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) throw new Error('Usa una imagen JPG, PNG o WebP.');
@@ -330,7 +439,7 @@ async function savePortalAppearance(event) {
     const mobileUrl = hasMobileFile ? await uploadPortalImage(mobileFile, 'mobile') : state.portalSettings?.hero_mobile_url || desktopUrl;
     const { error } = await supabase.from('portal_settings').upsert({ id: 'principal', hero_desktop_url: desktopUrl, hero_mobile_url: mobileUrl }, { onConflict: 'id' });
     if (error) throw error;
-    state.portalSettings = { hero_desktop_url: desktopUrl, hero_mobile_url: mobileUrl };
+    state.portalSettings = { ...(state.portalSettings || {}), hero_desktop_url: desktopUrl, hero_mobile_url: mobileUrl };
     modal('Imagen actualizada', '<p>La nueva imagen quedará disponible para los clientes al ingresar al portal.</p>');
   } catch (error) {
     modal('No fue posible guardar la imagen', `<p>${esc(errorText(error))}</p>`);
@@ -419,22 +528,117 @@ async function showProjectEditForm(id) {
   } catch (error) { modal('No fue posible abrir el formulario', `<p>${esc(errorText(error))}</p>`); }
 }
 
+async function adminServicesView() {
+  loading('Servicios');
+  try {
+    const [settings, recurrences] = await Promise.all([loadPortalSettings(true), loadServiceRecurrences(true)]);
+    const pageSize = 10;
+    const from = (state.servicePage - 1) * pageSize;
+    const { data, error, count } = await supabase.from('client_services').select('*, clients(first_name,last_name,company_name), portal_service_recurrences(name), service_renewals(id,renewal_date,status,receipt_path,renewed_at)', { count: 'exact' }).order('created_at', { ascending: false }).range(from, from + pageSize - 1);
+    if (error) return dataError('Servicios', error);
+    state.clientServices = new Map(data.map(service => [service.id, service]));
+    const totalPages = Math.max(1, Math.ceil((count || 0) / pageSize));
+    if (state.servicePage > totalPages) { state.servicePage = totalPages; return adminServicesView(); }
+    const alertDays = Number(settings?.service_alert_days || 30);
+    const list = data.length ? `<section class="admin-list">${data.map(service => adminServiceCard(service, alertDays)).join('')}</section>${servicePagination(totalPages)}` : '<div class="empty">Aún no hay servicios registrados.</div>';
+    const body = `<div class="admin-module-actions">${btn('Crear servicio', 'showServiceForm()', 'primary')}</div>${list}`;
+    adminModuleShell('servicios', 'Servicios', 'Gestiona renovaciones recurrentes, estados y comprobantes de cada cliente.', body);
+  } catch (error) { dataError('Servicios', error); }
+}
+
+function adminServiceCard(service, alertDays) {
+  const renewal = openRenewal(service);
+  const clientName = service.clients ? `${service.clients.first_name} ${service.clients.last_name}${service.clients.company_name ? ` · ${service.clients.company_name}` : ''}` : 'Cliente no disponible';
+  const active = service.active !== false;
+  const renewalText = renewal ? `${date(renewal.renewal_date)} · ${renewalStatus(renewal, alertDays)}` : 'Sin renovación programada';
+  return `<article class="admin-list-card"><div><p class="eyebrow">${esc(service.portal_service_recurrences?.name || 'Sin recurrencia')}</p><h2>${esc(service.name)}</h2><p>${esc(clientName)} · ${service.amount === null ? 'Valor por definir' : money(service.amount)} · ${renewalText}</p><div class="client-actions">${btn('Modificar servicio', `showServiceEditForm('${service.id}')`, 'small secondary')}${renewal && active ? btn('Confirmar renovación', `showRenewServiceForm('${renewal.id}')`, 'small') : ''}${btn(active ? 'Inactivar servicio' : 'Reactivar servicio', `setClientServiceActive('${service.id}', ${!active})`, 'small secondary')}</div></div><span class="status ${active ? (renewal ? renewalStatusClass(renewal, alertDays) : 'progress') : 'progress'}">${active ? (renewal ? renewalStatus(renewal, alertDays) : 'Sin programar') : 'Inactivo'}</span></article>`;
+}
+
+function servicePagination(totalPages) {
+  if (totalPages <= 1) return '';
+  return `<nav class="pagination" aria-label="Paginación de servicios"><button class="button small secondary" onclick="changeServicePage(${state.servicePage - 1})" ${state.servicePage === 1 ? 'disabled' : ''}>Anterior</button><span>Página ${state.servicePage} de ${totalPages}</span><button class="button small secondary" onclick="changeServicePage(${state.servicePage + 1})" ${state.servicePage === totalPages ? 'disabled' : ''}>Siguiente</button></nav>`;
+}
+
+function changeServicePage(page) { state.servicePage = Math.max(1, page); adminServicesView(); }
+
+async function loadServiceRecurrences(force = false) {
+  if (state.recurrences.length && !force) return state.recurrences;
+  const { data, error } = await supabase.from('portal_service_recurrences').select('id,name,interval_value,interval_unit,active').order('name', { ascending: true });
+  if (error) throw error;
+  state.recurrences = data || [];
+  return state.recurrences;
+}
+
+async function serviceClientOptions(selectedId = '') {
+  const { data, error } = await supabase.from('clients').select('id,first_name,last_name,company_name').order('first_name', { ascending: true });
+  if (error) throw error;
+  if (!data.length) throw new Error('Primero registra al menos un cliente para asociar el servicio.');
+  return data.map(client => `<option value="${client.id}" ${client.id === selectedId ? 'selected' : ''}>${esc(`${client.first_name} ${client.last_name}${client.company_name ? ` · ${client.company_name}` : ''}`)}</option>`).join('');
+}
+
+async function serviceRecurrenceOptions(selectedId = '') {
+  const recurrences = await loadServiceRecurrences(true);
+  const available = recurrences.filter(recurrence => recurrence.active || recurrence.id === selectedId);
+  if (!available.length) throw new Error('Primero configura al menos una recurrencia activa en Administración → Portal.');
+  return available.map(recurrence => `<option value="${recurrence.id}" ${recurrence.id === selectedId ? 'selected' : ''}>${esc(recurrence.name)}${recurrence.active ? '' : ' (inactiva)'}</option>`).join('');
+}
+
+function serviceFields(service = {}) {
+  const renewal = openRenewal(service);
+  return `<label class="field">Cliente<select name="client_id" required data-service-client-options></select></label><label class="field">Servicio<input name="name" value="${esc(service.name || '')}" placeholder="Por ejemplo: Hosting, Dominio o SSL" required></label><div class="form-columns"><label class="field">Recurrencia<select name="recurrence_id" required data-service-recurrence-options></select></label><label class="field">Valor de renovación (COP)<input name="amount" type="number" min="0" step="1" value="${esc(service.amount ?? '')}" placeholder="Opcional"></label></div><label class="field">Fecha de renovación<input name="renewal_date" type="date" value="${esc(renewal?.renewal_date || '')}" required></label><label class="field">Observaciones<textarea name="observations" placeholder="Información relevante para el cliente.">${esc(service.observations || '')}</textarea></label>`;
+}
+
+async function showServiceForm() {
+  try {
+    const [clients, recurrences] = await Promise.all([serviceClientOptions(), serviceRecurrenceOptions()]);
+    modal('Crear servicio', `<p class="modal-lead">Registra un servicio activo y programa su primera renovación.</p><form class="form client-form" onsubmit="createClientService(event)">${serviceFields()}<div class="modal-actions"><button type="button" class="button secondary" onclick="closeTopModal()">Cancelar</button>${btn('Crear servicio', '', 'primary', 'submit')}</div></form>`, false);
+    document.querySelector('[data-service-client-options]').innerHTML = `<option value="">Selecciona un cliente</option>${clients}`;
+    document.querySelector('[data-service-recurrence-options]').innerHTML = `<option value="">Selecciona una recurrencia</option>${recurrences}`;
+  } catch (error) { modal('No fue posible abrir el formulario', `<p>${esc(errorText(error))}</p>`); }
+}
+
+async function showServiceEditForm(id) {
+  const service = state.clientServices.get(id);
+  if (!service) return modal('No fue posible abrir el servicio', '<p>Actualiza la vista e inténtalo nuevamente.</p>');
+  try {
+    const [clients, recurrences] = await Promise.all([serviceClientOptions(service.client_id), serviceRecurrenceOptions(service.recurrence_id)]);
+    modal('Modificar servicio', `<p class="modal-lead">Actualiza el servicio y su próxima fecha de renovación.</p><form class="form client-form" onsubmit="updateClientService(event, '${service.id}')">${serviceFields(service)}<div class="modal-actions"><button type="button" class="button secondary" onclick="closeTopModal()">Cancelar</button>${btn('Guardar cambios', '', 'primary', 'submit')}</div></form>`, false);
+    document.querySelector('[data-service-client-options]').innerHTML = clients;
+    document.querySelector('[data-service-recurrence-options]').innerHTML = recurrences;
+  } catch (error) { modal('No fue posible abrir el formulario', `<p>${esc(errorText(error))}</p>`); }
+}
+
+function showRenewServiceForm(renewalId) {
+  modal('Confirmar renovación', `<p class="modal-lead">Adjunta el comprobante PNG. Al confirmar, el sistema conservará esta renovación y programará automáticamente la siguiente.</p><form class="form client-form" onsubmit="renewClientService(event, '${renewalId}')"><label class="field">Comprobante PNG <small>Obligatorio · máximo 5 MB.</small><input name="receipt" type="file" accept="image/png" required></label><div class="modal-actions"><button type="button" class="button secondary" onclick="closeTopModal()">Cancelar</button>${btn('Confirmar renovación', '', 'primary', 'submit')}</div></form>`, false);
+}
+
 async function adminPaymentsView() {
   loading('Pagos');
   try { await loadPortalPaymentTypes(true); } catch (error) { return dataError('Pagos', error); }
   const pageSize = 10;
-  const from = (state.paymentPage - 1) * pageSize;
-  const { data, error, count } = await supabase.from('project_payments').select('*, projects(code,title,clients(first_name,last_name))', { count: 'exact' }).order('payment_date', { ascending: false }).range(from, from + pageSize - 1);
-  if (error) return dataError('Pagos', error);
-  state.payments = new Map(data.map(payment => [payment.id, payment]));
-  const totalPages = Math.max(1, Math.ceil((count || 0) / pageSize));
+  const [projectResult, serviceResult] = await Promise.all([
+    supabase.from('project_payments').select('*, projects(code,title,clients(first_name,last_name))').order('payment_date', { ascending: false }),
+    supabase.from('service_renewals').select('*, client_services(name,amount,clients(first_name,last_name))').order('renewed_at', { ascending: false })
+  ]);
+  if (projectResult.error || serviceResult.error) return dataError('Pagos', projectResult.error || serviceResult.error);
+  const projectPayments = (projectResult.data || []).map(payment => ({ ...payment, source: 'project', sort_date: payment.payment_date || payment.created_at }));
+  const servicePayments = (serviceResult.data || []).filter(renewal => renewal.status === 'renovado').map(renewal => ({ ...renewal, source: 'service', sort_date: renewal.renewed_at || renewal.created_at }));
+  const allPayments = [...projectPayments, ...servicePayments].sort((a, b) => String(b.sort_date).localeCompare(String(a.sort_date)));
+  const totalPages = Math.max(1, Math.ceil(allPayments.length / pageSize));
   if (state.paymentPage > totalPages) { state.paymentPage = totalPages; return adminPaymentsView(); }
+  const from = (state.paymentPage - 1) * pageSize;
+  const data = allPayments.slice(from, from + pageSize);
+  state.payments = new Map(projectPayments.map(payment => [payment.id, payment]));
   const list = data.length ? `<section class="admin-list">${data.map(paymentCard).join('')}</section>${paymentPagination(totalPages)}` : '<div class="empty">Aún no hay pagos registrados.</div>';
   const body = `<div class="admin-module-actions">${btn('Registrar pago', 'showPaymentForm()', 'primary')}</div>${list}`;
-  adminModuleShell('pagos', 'Pagos', 'Consulta el estado y la trazabilidad de los pagos de cada proyecto.', body);
+  adminModuleShell('pagos', 'Pagos', 'Consulta pagos de proyectos y renovaciones de servicios en un mismo lugar.', body);
 }
 
 function paymentCard(payment) {
+  if (payment.source === 'service') {
+    const clientName = payment.client_services?.clients ? `${payment.client_services.clients.first_name} ${payment.client_services.clients.last_name}` : 'Cliente no disponible';
+    return `<article class="admin-list-card"><div><p class="eyebrow">Renovación de servicio</p><h2>${esc(payment.client_services?.name || 'Servicio no disponible')}</h2><p>${esc(clientName)} · ${payment.client_services?.amount === null ? 'Valor por definir' : money(payment.client_services?.amount)} · Renovado el ${date(payment.renewed_at)}</p><div class="client-actions">${payment.receipt_path ? btn('Ver comprobante', `openServiceReceipt('${esc(payment.receipt_path)}')`, 'small secondary') : ''}${btn('Ver servicio', "location.hash='#admin-servicios'", 'small secondary')}</div></div><span class="status">Renovado</span></article>`;
+  }
   const clientName = payment.projects?.clients ? `${payment.projects.clients.first_name} ${payment.projects.clients.last_name}` : 'Cliente no disponible';
   return `<article class="admin-list-card"><div><p class="eyebrow">${esc(payment.code)}</p><h2>${paymentType(payment.payment_type)}</h2><p>${esc(payment.projects?.title || 'Proyecto no disponible')} · ${esc(clientName)} · ${payment.amount ? money(payment.amount) : 'Sin monto registrado'} · ${payment.status === 'pendiente' ? 'Pendiente de pago' : date(payment.payment_date)}</p><div class="client-actions">${btn('Modificar pago', `showPaymentEditForm('${payment.id}')`, 'small secondary')}${payment.receipt_path ? btn('Ver comprobante', `openPaymentReceipt('${esc(payment.receipt_path)}')`, 'small secondary') : ''}</div></div><span class="status ${payment.status === 'pendiente' ? 'progress' : ''}">${payment.status === 'confirmado' ? 'Confirmado' : 'Pendiente'}</span></article>`;
 }
@@ -526,6 +730,73 @@ async function invokeClientAdmin(body) {
 async function invokeProjectAdmin(body) {
   startActivity('Guardando cambios…');
   try { const { data, error } = await supabase.functions.invoke('manage-projects', { body }); if (error || data?.error) throw new Error(data?.error || errorText(error)); return data; } finally { finishActivity(); }
+}
+
+async function invokeServiceAdmin(body) {
+  startActivity('Guardando cambios…');
+  try { const { data, error } = await supabase.functions.invoke('manage-services', { body }); if (error || data?.error) throw new Error(data?.error || errorText(error)); return data; } finally { finishActivity(); }
+}
+
+async function uploadServiceReceipt(renewalId, file) {
+  if (!(file instanceof File) || file.size === 0) throw new Error('Adjunta el comprobante PNG de la renovación.');
+  if (file.type !== 'image/png') throw new Error('El comprobante debe estar en formato PNG.');
+  if (file.size > 5 * 1024 * 1024) throw new Error('El comprobante debe pesar máximo 5 MB.');
+  const path = `${renewalId}/receipt.png`;
+  const { error } = await supabase.storage.from('service-renewal-receipts').upload(path, file, { upsert: true, contentType: 'image/png', cacheControl: '3600' });
+  if (error) throw error;
+  return path;
+}
+
+async function createClientService(event) {
+  event.preventDefault();
+  const form = new FormData(event.target);
+  const submit = event.target.querySelector('[type="submit"]');
+  submit.disabled = true; submit.textContent = 'Creando…';
+  try {
+    await invokeServiceAdmin({ action: 'create', client_id: form.get('client_id'), name: form.get('name'), recurrence_id: form.get('recurrence_id'), amount: form.get('amount'), renewal_date: form.get('renewal_date'), observations: form.get('observations') });
+    closeTopModal(); state.servicePage = 1; await adminServicesView();
+    modal('Servicio creado', '<p>El servicio quedó registrado y su primera renovación fue programada.</p>');
+  } catch (error) { submit.disabled = false; submit.textContent = 'Crear servicio'; modal('No fue posible crear el servicio', `<p>${esc(errorText(error))}</p>`); }
+}
+
+async function updateClientService(event, id) {
+  event.preventDefault();
+  const form = new FormData(event.target);
+  const submit = event.target.querySelector('[type="submit"]');
+  submit.disabled = true; submit.textContent = 'Guardando…';
+  try {
+    await invokeServiceAdmin({ action: 'update', service_id: id, client_id: form.get('client_id'), name: form.get('name'), recurrence_id: form.get('recurrence_id'), amount: form.get('amount'), renewal_date: form.get('renewal_date'), observations: form.get('observations') });
+    closeTopModal(); await adminServicesView();
+  } catch (error) { submit.disabled = false; submit.textContent = 'Guardar cambios'; modal('No fue posible actualizar el servicio', `<p>${esc(errorText(error))}</p>`); }
+}
+
+async function setClientServiceActive(id, active) {
+  try { await invokeServiceAdmin({ action: 'set_active', service_id: id, active }); await adminServicesView(); }
+  catch (error) { modal('No fue posible actualizar el servicio', `<p>${esc(errorText(error))}</p>`); }
+}
+
+async function renewClientService(event, renewalId) {
+  event.preventDefault();
+  const form = new FormData(event.target);
+  const submit = event.target.querySelector('[type="submit"]');
+  submit.disabled = true; submit.textContent = 'Confirmando…';
+  try {
+    const receiptPath = await uploadServiceReceipt(renewalId, form.get('receipt'));
+    const result = await invokeServiceAdmin({ action: 'renew', renewal_id: renewalId, receipt_path: receiptPath });
+    closeTopModal(); await adminServicesView();
+    modal('Renovación confirmada', `<p>El comprobante fue guardado y la siguiente renovación quedó programada para ${date(result.next_renewal?.renewal_date)}.</p>`);
+  } catch (error) { submit.disabled = false; submit.textContent = 'Confirmar renovación'; modal('No fue posible confirmar la renovación', `<p>${esc(errorText(error))}</p>`); }
+}
+
+async function openServiceReceipt(path) {
+  const viewer = window.open('', '_blank');
+  if (!viewer) return modal('No fue posible abrir el comprobante', '<p>Permite las ventanas emergentes para este portal e inténtalo nuevamente.</p>');
+  viewer.opener = null;
+  viewer.document.title = 'Comprobante de renovación';
+  viewer.document.body.innerHTML = '<p style="font-family:Inter,Arial,sans-serif;padding:24px">Abriendo comprobante…</p>';
+  const { data, error } = await supabase.storage.from('service-renewal-receipts').createSignedUrl(path, 60);
+  if (error || !data?.signedUrl) { viewer.close(); return modal('No fue posible abrir el comprobante', `<p>${esc(errorText(error))}</p>`); }
+  viewer.location.replace(data.signedUrl);
 }
 
 async function invokePaymentAdmin(body) {
@@ -674,7 +945,7 @@ function showTemporaryPassword(password, title, message) {
 }
 async function submitCsat(event) { event.preventDefault(); const form = new FormData(event.target); const token = captchaToken('csat'); if (!token) return modal('Verificación requerida', '<p>Completa la verificación de seguridad antes de enviar la encuesta.</p>'); startActivity('Enviando encuesta…'); try { const { data, error } = await supabase.functions.invoke('submit-csat', { body: { token, email: form.get('email').trim().toLowerCase(), satisfaction: Number(form.get('satisfaction')), expectation: form.get('expectation'), return_intent: form.get('return'), improvement: form.get('improvement').trim() || null } }); if (error || data?.error) { resetTurnstile('csat'); return modal('No fue posible enviar la encuesta', `<p>${esc(data?.error || errorText(error))}</p>`); } event.target.reset(); resetTurnstile('csat'); modal('¡Gracias por tu tiempo!', '<p>Tu respuesta ha sido registrada. Tu opinión es importante para seguir mejorando.</p>'); } finally { finishActivity(); } }
 async function hydrate() { const { data: { session } } = await supabase.auth.getSession(); state.session = session; state.profile = null; if (session) { const { data } = await supabase.from('profiles').select('role, client_id').eq('id', session.user.id).maybeSingle(); state.profile = data; } }
-async function render() { const route = location.hash.replace('#', '').split('?')[0] || 'login'; if (route === 'actualizar-clave') return recoveryView(); if (state.session?.user?.user_metadata?.force_password_change) { location.hash = '#actualizar-clave'; return; } if (privateRoutes.has(route)) { if (!state.session) { location.hash = '#login'; return; } if (route.startsWith('admin') && state.profile?.role !== 'admin') { location.hash = '#inicio'; return; } } const view = { login: loginView, inicio: homeView, proyectos: projectsView, encuestas: surveysView, satisfaccion: csatView, admin: adminView, 'admin-clientes': adminClientsView, 'admin-proyectos': adminProjectsView, 'admin-pagos': adminPaymentsView, 'admin-encuestas': adminSurveysView, 'admin-portal': adminPortalView }[route] || loginView; await view(); window.scrollTo(0, 0); }
+async function render() { const route = location.hash.replace('#', '').split('?')[0] || 'login'; if (route === 'actualizar-clave') return recoveryView(); if (state.session?.user?.user_metadata?.force_password_change) { location.hash = '#actualizar-clave'; return; } if (privateRoutes.has(route)) { if (!state.session) { location.hash = '#login'; return; } if (route.startsWith('admin') && state.profile?.role !== 'admin') { location.hash = '#inicio'; return; } } const view = { login: loginView, inicio: homeView, proyectos: projectsView, servicios: servicesView, encuestas: surveysView, satisfaccion: csatView, admin: adminView, 'admin-clientes': adminClientsView, 'admin-proyectos': adminProjectsView, 'admin-servicios': adminServicesView, 'admin-pagos': adminPaymentsView, 'admin-encuestas': adminSurveysView, 'admin-portal': adminPortalView }[route] || loginView; await view(); window.scrollTo(0, 0); }
 function modal(title, content, showClose = true) { document.body.insertAdjacentHTML('beforeend', `<div class="modal-backdrop" onclick="if(event.target===this)this.remove()"><section class="modal"><h2>${title}</h2><div>${content}</div>${showClose ? '<div class="modal-actions"><button class="button" onclick="this.closest(\'.modal-backdrop\').remove()">Cerrar <span class="circle">×</span></button></div>' : ''}</section></div>`); }
 function closeTopModal() { document.querySelector('.modal-backdrop:last-of-type')?.remove(); }
 function copyProjectLink(value, element) { navigator.clipboard?.writeText(decodeURIComponent(value)); element.innerHTML = 'Enlace copiado <span class="circle">✓</span>'; }
@@ -686,7 +957,7 @@ function returnLabel(v) { return ({ si: 'Sí', tal_vez: 'Tal vez', no: 'No' })[v
 function date(v) { return v ? new Intl.DateTimeFormat('es-CO', { dateStyle: 'medium' }).format(new Date(`${v.slice(0, 10)}T12:00:00`)) : 'Sin fecha'; }
 function money(v) { return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v); }
 
-Object.assign(window, { signIn, signOut, requestPasswordReset, updatePassword, submitCsat, projectInfo, projectPayments, surveyResponse, copyProjectLink, showClientForm, togglePortalAccess, createPortalClient, updatePortalClient, showClientEditForm, confirmClientAction, runClientAction, changeClientPage, showProjectForm, showProjectEditForm, createPortalProject, updatePortalProject, changeProjectPage, showPaymentForm, showPaymentEditForm, createPortalPayment, updatePortalPayment, changePaymentPage, openPaymentReceipt, closeTopModal, copyTemporaryPassword, savePortalAppearance, addPortalService, setPortalServiceStatus, addPortalPaymentType, setPortalPaymentTypeStatus, togglePaymentDetails });
+Object.assign(window, { signIn, signOut, requestPasswordReset, updatePassword, submitCsat, projectInfo, projectPayments, surveyResponse, serviceInfo, openServiceReceipt, copyProjectLink, showClientForm, togglePortalAccess, createPortalClient, updatePortalClient, showClientEditForm, confirmClientAction, runClientAction, changeClientPage, showProjectForm, showProjectEditForm, createPortalProject, updatePortalProject, changeProjectPage, showServiceForm, showServiceEditForm, createClientService, updateClientService, setClientServiceActive, showRenewServiceForm, renewClientService, changeServicePage, showPaymentForm, showPaymentEditForm, createPortalPayment, updatePortalPayment, changePaymentPage, openPaymentReceipt, closeTopModal, copyTemporaryPassword, savePortalAppearance, addPortalService, setPortalServiceStatus, addPortalPaymentType, setPortalPaymentTypeStatus, addServiceRecurrence, setServiceRecurrenceStatus, saveServiceAlertSettings, togglePaymentDetails });
 supabase.auth.onAuthStateChange((event) => { if (event === 'PASSWORD_RECOVERY') location.hash = '#actualizar-clave'; if (event === 'SIGNED_OUT') { state.session = null; state.profile = null; } });
 window.addEventListener('hashchange', render);
 await hydrate();
