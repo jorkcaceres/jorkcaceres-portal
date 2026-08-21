@@ -132,7 +132,7 @@ create policy "Administradores leen comprobantes de renovaciones"
 on storage.objects for select to authenticated
 using (
   bucket_id = 'service-renewal-receipts'
-  and name ~ '^[0-9a-f-]+/receipt\\.png$'
+  and name ~ '^[0-9a-f-]+/receipt[.]png$'
   and exists (select 1 from public.profiles where id = (select auth.uid()) and role = 'admin')
 );
 
@@ -141,7 +141,7 @@ create policy "Administradores suben comprobantes de renovaciones"
 on storage.objects for insert to authenticated
 with check (
   bucket_id = 'service-renewal-receipts'
-  and name ~ '^[0-9a-f-]+/receipt\\.png$'
+  and name ~ '^[0-9a-f-]+/receipt[.]png$'
   and exists (select 1 from public.profiles where id = (select auth.uid()) and role = 'admin')
 );
 
@@ -150,12 +150,12 @@ create policy "Administradores actualizan comprobantes de renovaciones"
 on storage.objects for update to authenticated
 using (
   bucket_id = 'service-renewal-receipts'
-  and name ~ '^[0-9a-f-]+/receipt\\.png$'
+  and name ~ '^[0-9a-f-]+/receipt[.]png$'
   and exists (select 1 from public.profiles where id = (select auth.uid()) and role = 'admin')
 )
 with check (
   bucket_id = 'service-renewal-receipts'
-  and name ~ '^[0-9a-f-]+/receipt\\.png$'
+  and name ~ '^[0-9a-f-]+/receipt[.]png$'
   and exists (select 1 from public.profiles where id = (select auth.uid()) and role = 'admin')
 );
 
