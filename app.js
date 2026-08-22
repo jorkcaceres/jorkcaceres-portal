@@ -229,22 +229,46 @@ const adminIcon = (type) => ({
   surveys: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>'
 }[type]);
 
-const adminNav = (active) => `<nav class="admin-nav"><a class="${active === 'admin' ? 'active' : ''}" href="#admin">Resumen</a><a class="${active === 'clientes' ? 'active' : ''}" href="#admin-clientes">Clientes</a><a class="${active === 'proyectos' ? 'active' : ''}" href="#admin-proyectos">Proyectos</a><a class="${active === 'servicios' ? 'active' : ''}" href="#admin-servicios">Servicios</a><a class="${active === 'pagos' ? 'active' : ''}" href="#admin-pagos">Pagos</a><a class="${active === 'encuestas' ? 'active' : ''}" href="#admin-encuestas">Encuestas</a><a class="${active === 'portal' ? 'active' : ''}" href="#admin-portal">Portal</a></nav>`;
+const adminNav = (active) => `<nav class="admin-nav"><a class="${active === 'admin' ? 'active' : ''}" href="#admin">Panorama</a><a class="${active === 'clientes' ? 'active' : ''}" href="#admin-clientes">Clientes</a><a class="${active === 'proyectos' ? 'active' : ''}" href="#admin-proyectos">Proyectos</a><a class="${active === 'servicios' ? 'active' : ''}" href="#admin-servicios">Servicios</a><a class="${active === 'pagos' ? 'active' : ''}" href="#admin-pagos">Pagos</a><a class="${active === 'encuestas' ? 'active' : ''}" href="#admin-encuestas">Encuestas</a><a class="${active === 'portal' ? 'active' : ''}" href="#admin-portal">Portal</a></nav>`;
 
 async function adminView() {
-  loading('Administración');
-  const queries = ['clients', 'projects', 'client_services', 'project_payments', 'csat_responses'].map(table => supabase.from(table).select('*', { count: 'exact', head: true }));
-  const [clients, projects, services, projectPayments, surveys, serviceRenewals] = await Promise.all([...queries, supabase.from('service_renewals').select('*', { count: 'exact', head: true }).eq('status', 'renovado')]);
-  const error = [clients, projects, services, projectPayments, serviceRenewals, surveys].find(result => result.error)?.error;
-  if (error) return dataError('Administración', error);
-  const entries = [
-    ['clients', 'Clientes', 'Organiza la información y el acceso de cada cliente.', clients.count || 0, '#admin-clientes'],
-    ['projects', 'Proyectos', 'Consulta los proyectos, estados y entregables registrados.', projects.count || 0, '#admin-proyectos'],
-    ['services', 'Servicios', 'Gestiona renovaciones recurrentes y sus comprobantes.', services.count || 0, '#admin-servicios'],
-    ['payments', 'Pagos', 'Consulta cobros de proyectos y renovaciones.', (projectPayments.count || 0) + (serviceRenewals.count || 0), '#admin-pagos'],
-    ['surveys', 'Encuestas', 'Revisa respuestas y métricas de satisfacción.', surveys.count || 0, '#admin-encuestas']
-  ];
-  app.innerHTML = `${header()}<main class="page admin-page"><p class="eyebrow">Administración</p><h1>Gestión del portal.</h1><p class="lead">Centraliza la relación con tus clientes y la información de cada servicio.</p>${adminNav('admin')}<section class="admin-grid">${entries.map(([type, title, description, total, target]) => `<article class="admin-card"><div class="admin-card-top"><span class="admin-icon">${adminIcon(type)}</span><strong class="admin-count">${total}</strong></div><h2>${title}</h2><p>${description}</p>${btn(`Gestionar ${title.toLowerCase()}`, `location.hash='${target}'`, 'secondary')}</article>`).join('')}</section></main>${footer()}`;
+  loading('Panorama');
+  try {
+    const [settings, projectsResult, paymentsResult, servicesResult] = await Promise.all([
+      loadPortalSettings(true),
+      supabase.from('projects').select('id,status'),
+      supabase.from('project_payments').select('id,status,amount'),
+      supabase.from('client_services').select('id,active,amount,service_renewals(status,renewal_date)')
+    ]);
+    const error = [projectsResult, paymentsResult, servicesResult].find(result => result.error)?.error;
+    if (error) return dataError('Panorama', error);
+
+    const projects = projectsResult.data || [];
+    const payments = paymentsResult.data || [];
+    const services = servicesResult.data || [];
+    const alertDays = Number(settings?.service_alert_days || 30);
+    const projectCount = status => projects.filter(project => project.status === status).length;
+    const pendingPayments = payments.filter(payment => payment.status === 'pendiente');
+    const pendingAmount = pendingPayments.reduce((total, payment) => total + Number(payment.amount || 0), 0);
+    const activeServices = services.filter(service => service.active !== false);
+    const renewalItems = activeServices.flatMap(service => (service.service_renewals || [])
+      .filter(renewal => renewal.status === 'programado')
+      .map(renewal => ({ ...renewal, amount: service.amount })));
+    const upcomingRenewals = renewalItems.filter(renewal => {
+      const days = renewalRemainingDays(renewal.renewal_date);
+      return days >= 0 && days <= alertDays;
+    });
+    const expiredRenewals = renewalItems.filter(renewal => renewalRemainingDays(renewal.renewal_date) < 0);
+    const projectedRenewals = [...upcomingRenewals, ...expiredRenewals].reduce((total, renewal) => total + Number(renewal.amount || 0), 0);
+    const confirmedPayments = payments.filter(payment => payment.status === 'confirmado').length
+      + services.reduce((total, service) => total + (service.service_renewals || []).filter(renewal => renewal.status === 'renovado').length, 0);
+
+    const attention = `<section class="section"><div class="section-heading"><div><p class="eyebrow">Atención</p><h2>Lo que requiere revisión</h2><p>Priorización basada en el estado actual del portal.</p></div></div><div class="admin-grid"><article class="admin-card"><div class="admin-card-top"><span class="admin-icon">${adminIcon('services')}</span><strong class="admin-count">${upcomingRenewals.length + expiredRenewals.length}</strong></div><h2>Renovaciones por atender</h2><p>${expiredRenewals.length ? `${expiredRenewals.length} vencida${expiredRenewals.length === 1 ? '' : 's'}` : 'Sin renovaciones vencidas'} · ${upcomingRenewals.length} próxima${upcomingRenewals.length === 1 ? '' : 's'} a vencer${projectedRenewals ? ` · ${money(projectedRenewals)} estimados` : ''}.</p>${btn('Ver servicios', "location.hash='#admin-servicios'", 'secondary')}</article><article class="admin-card"><div class="admin-card-top"><span class="admin-icon">${adminIcon('payments')}</span><strong class="admin-count">${pendingPayments.length}</strong></div><h2>Pagos pendientes</h2><p>${pendingPayments.length ? `${money(pendingAmount)} pendiente${pendingPayments.length === 1 ? '' : 's'} de confirmar.` : 'No hay pagos pendientes de confirmación.'}</p>${btn('Ver pagos', "location.hash='#admin-pagos'", 'secondary')}</article><article class="admin-card"><div class="admin-card-top"><span class="admin-icon">${adminIcon('projects')}</span><strong class="admin-count">${projectCount('pausado')}</strong></div><h2>Proyectos pausados</h2><p>${projectCount('pausado') ? 'Revisa si requieren una decisión o una nueva fecha de trabajo.' : 'No hay proyectos pausados.'}</p>${btn('Ver proyectos', "location.hash='#admin-proyectos'", 'secondary')}</article></div></section>`;
+    const projectsSummary = `<section class="section"><div class="section-heading"><div><p class="eyebrow">Proyectos</p><h2>Estado general</h2></div>${btn('Gestionar proyectos', "location.hash='#admin-proyectos'", 'small secondary')}</div><div class="metric-grid"><article class="metric-card"><span>Planificados</span><strong>${projectCount('planificado')}</strong></article><article class="metric-card"><span>En curso</span><strong>${projectCount('en_curso')}</strong></article><article class="metric-card"><span>Pausados</span><strong>${projectCount('pausado')}</strong></article><article class="metric-card"><span>Finalizados</span><strong>${projectCount('finalizado')}</strong></article></div></section>`;
+    const servicesSummary = `<section class="section"><div class="section-heading"><div><p class="eyebrow">Servicios</p><h2>Renovaciones y continuidad</h2></div>${btn('Gestionar servicios', "location.hash='#admin-servicios'", 'small secondary')}</div><div class="metric-grid"><article class="metric-card"><span>Activos</span><strong>${activeServices.length}</strong></article><article class="metric-card"><span>Inactivos</span><strong>${services.length - activeServices.length}</strong></article><article class="metric-card"><span>Próximos a vencer</span><strong>${upcomingRenewals.length}</strong></article><article class="metric-card"><span>Vencidos</span><strong>${expiredRenewals.length}</strong></article></div></section>`;
+    const paymentsSummary = `<section class="section"><div class="section-heading"><div><p class="eyebrow">Pagos</p><h2>Cobros y confirmaciones</h2></div>${btn('Gestionar pagos', "location.hash='#admin-pagos'", 'small secondary')}</div><div class="metric-grid"><article class="metric-card"><span>Pendientes</span><strong>${pendingPayments.length}</strong></article><article class="metric-card"><span>Valor pendiente</span><strong>${money(pendingAmount)}</strong></article><article class="metric-card"><span>Confirmados</span><strong>${confirmedPayments}</strong></article></div></section>`;
+    app.innerHTML = `${header()}<main class="page admin-page"><p class="eyebrow">Administración</p><h1>Panorama.</h1><p class="lead">Una visión general para identificar qué requiere atención y tomar decisiones.</p>${adminNav('admin')}${attention}${projectsSummary}${servicesSummary}${paymentsSummary}</main>${footer()}`;
+  } catch (error) { dataError('Panorama', error); }
 }
 
 function adminModuleShell(section, title, description, body) {
