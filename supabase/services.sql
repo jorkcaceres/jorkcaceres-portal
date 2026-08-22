@@ -169,7 +169,7 @@ using (
     from public.service_renewals
     join public.client_services on client_services.id = service_renewals.service_id
     join public.profiles on profiles.client_id = client_services.client_id
-    where service_renewals.id::text = (storage.foldername(name))[1]
+    where service_renewals.id::text = (storage.foldername(storage.objects.name))[1]
       and profiles.id = (select auth.uid())
   )
 );

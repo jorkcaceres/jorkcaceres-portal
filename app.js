@@ -54,10 +54,10 @@ async function homeView() {
   const heroImage = settings?.hero_desktop_url ? `<picture class="hero-image"><source media="(max-width: 760px)" srcset="${esc(settings.hero_mobile_url || settings.hero_desktop_url)}"><img src="${esc(settings.hero_desktop_url)}" alt="Imagen principal del Portal Jorkcáceres"></picture>` : '<div class="hero-mark" aria-hidden="true">J</div>';
   const greeting = firstName || email;
   const alertDays = Number(settings?.service_alert_days || 30);
-  const alerts = clientServices.filter(service => {
+  const alerts = clientServices.filter(service => service.active !== false && (() => {
     const renewal = openRenewal(service);
     return renewal && renewalRemainingDays(renewal.renewal_date) <= alertDays;
-  });
+  })());
   const alertSection = alerts.length ? `<section class="section"><div class="section-heading"><div><p class="eyebrow">Atención</p><h2>Próximas renovaciones</h2><p>Tienes servicios que requieren renovación en los próximos ${alertDays} días.</p></div></div><div class="card-grid">${alerts.map(service => { const renewal = openRenewal(service); const days = renewalRemainingDays(renewal.renewal_date); return `<article class="card"><div class="card-top"><div><p class="eyebrow">Servicio</p><h3>${esc(service.name)}</h3></div><span class="status ${renewalStatusClass(renewal, alertDays)}">${renewalStatus(renewal, alertDays)}</span></div><p>Renovación: ${date(renewal.renewal_date)} · ${days < 0 ? `Venció hace ${Math.abs(days)} días` : days === 0 ? 'Vence hoy' : `${days} días restantes`}</p>${service.amount !== null ? `<p><strong>${money(service.amount)}</strong></p>` : ''}${btn('Ver servicio', "location.hash='#servicios'", 'small secondary')}</article>`; }).join('')}</div></section>` : '';
   app.innerHTML = `${header()}<main class="page"><section class="hero"><div><p class="eyebrow">Hola, ${esc(greeting)}</p><h1>Tu espacio de trabajo con Jorkcáceres.</h1><p class="lead">Aquí encontrarás información relevante de los proyectos que realizamos juntos, tus servicios y las encuestas que has respondido.</p></div>${heroImage}</section>${alertSection}<section class="section"><div class="section-heading"><div><p class="eyebrow">Accesos</p><h2>¿Qué quieres consultar?</h2></div></div><div class="card-grid"><article class="card"><div class="card-icon">${cardIcons.projects}</div><h3>Proyectos</h3><p>Revisa el estado de tus proyectos, sus entregables, observaciones y pagos.</p>${btn('Ver proyectos', "location.hash='#proyectos'")}</article><article class="card"><div class="card-icon">${cardIcons.services}</div><h3>Servicios</h3><p>Consulta tus renovaciones, estados y comprobantes disponibles.</p>${btn('Ver servicios', "location.hash='#servicios'")}</article><article class="card"><div class="card-icon">${cardIcons.surveys}</div><h3>Encuestas</h3><p>Consulta las encuestas que has realizado y los resultados disponibles.</p>${btn('Ver encuestas', "location.hash='#encuestas'")}</article></div></section></main>${footer()}`;
 }
@@ -137,7 +137,7 @@ async function projectPayments(id) {
 }
 
 async function loadClientServices() {
-  const { data, error } = await supabase.from('client_services').select('id,name,amount,observations,active,portal_service_recurrences(name),service_renewals(id,renewal_date,status,receipt_path,renewed_at)').eq('active', true).order('created_at', { ascending: false });
+  const { data, error } = await supabase.from('client_services').select('id,name,amount,observations,active,portal_service_recurrences(name),service_renewals(id,renewal_date,status,receipt_path,renewed_at)').order('created_at', { ascending: false });
   if (error) throw error;
   return data || [];
 }
@@ -179,7 +179,8 @@ async function servicesView() {
       const renewal = openRenewal(service);
       const recurrence = service.portal_service_recurrences?.name || 'Sin recurrencia';
       const remaining = renewal ? renewalRemainingDays(renewal.renewal_date) : null;
-      return `<article class="card"><div class="card-top"><div><p class="eyebrow">${esc(recurrence)}</p><h3>${esc(service.name)}</h3></div>${renewal ? `<span class="status ${renewalStatusClass(renewal, alertDays)}">${renewalStatus(renewal, alertDays)}</span>` : ''}</div><p>${renewal ? `Próxima renovación: ${date(renewal.renewal_date)}${remaining !== null ? ` · ${remaining < 0 ? `Venció hace ${Math.abs(remaining)} días` : remaining === 0 ? 'Vence hoy' : `${remaining} días restantes`}` : ''}` : 'No hay una renovación programada.'}</p><div class="item-grid"><span>Valor<strong>${service.amount === null ? 'Por definir' : money(service.amount)}</strong></span><span>Recurrencia<strong>${esc(recurrence)}</strong></span></div>${btn('Ver detalles', `serviceInfo('${service.id}')`, 'small secondary')}</article>`;
+      const statusLabel = service.active === false ? 'Inactivo' : (renewal ? renewalStatus(renewal, alertDays) : 'Sin programar');
+      return `<article class="card"><div class="card-top"><div><p class="eyebrow">${esc(recurrence)}</p><h3>${esc(service.name)}</h3></div><span class="status ${service.active === false ? 'progress' : renewalStatusClass(renewal, alertDays)}">${statusLabel}</span></div><p>${renewal ? `Próxima renovación: ${date(renewal.renewal_date)}${service.active === false ? '' : remaining !== null ? ` · ${remaining < 0 ? `Venció hace ${Math.abs(remaining)} días` : remaining === 0 ? 'Vence hoy' : `${remaining} días restantes`}` : ''}` : 'No hay una renovación programada.'}</p><div class="item-grid"><span>Valor<strong>${service.amount === null ? 'Por definir' : money(service.amount)}</strong></span><span>Recurrencia<strong>${esc(recurrence)}</strong></span></div>${btn('Ver detalles', `serviceInfo('${service.id}')`, 'small secondary')}</article>`;
     }).join('') : '<div class="empty">Aún no tienes servicios activos registrados en el portal.</div>';
     app.innerHTML = `${header()}<main class="page">${breadcrumbs([{ label: 'Portal', href: '#inicio' }, { label: 'Servicios' }])}<h1>Servicios</h1><p class="lead">Consulta las renovaciones de tus servicios, sus estados y comprobantes disponibles.</p><div class="card-grid">${cards}</div></main>${footer()}`;
   } catch (error) { dataError('Servicios', error); }
