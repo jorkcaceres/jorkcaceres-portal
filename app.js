@@ -750,7 +750,28 @@ async function adminSurveysView() {
   const repurchaseIntent = data.length ? Math.round((data.filter(item => item.return_intent === 'si').length / data.length) * 100) : '—';
   const completeMetrics = `<section class="metric-grid"><article class="metric-card"><span>Respuestas</span><strong>${data.length}</strong></article><article class="metric-card"><span>Promedio</span><strong>${average}${data.length ? ' / 5' : ''}</strong></article><article class="metric-card"><span>CSAT</span><strong>${csat}${data.length ? '%' : ''}</strong></article><article class="metric-card"><span>Expectativas</span><strong>${expectationFulfillment}${data.length ? '%' : ''}</strong></article><article class="metric-card"><span>Recompra</span><strong>${repurchaseIntent}${data.length ? '%' : ''}</strong></article></section>`;
   const list = data.length ? `<section class="admin-list">${data.map(response => { const client = response.clients ? `${response.clients.first_name} ${response.clients.last_name}${response.clients.company_name ? ` · ${response.clients.company_name}` : ''}` : 'Sin cliente asociado'; return `<article class="admin-list-card"><div><p class="eyebrow">CSAT · ${date(response.submitted_at)}</p><h2>${response.satisfaction} / 5 · ${expectation(response.expectation)}</h2><p>${esc(response.email)}${response.improvement ? ` · ${esc(response.improvement)}` : ''}</p><p class="association ${response.client_id ? '' : 'unmatched'}">${response.client_id ? `Cliente asociado: ${esc(client)}` : 'Sin coincidencia de correo con un cliente'}</p></div><span class="status">Respondida</span></article>`; }).join('')}</section>` : '<div class="empty">Aún no hay respuestas de satisfacción.</div>';
-  adminModuleShell('encuestas', 'Encuestas', 'Consulta las respuestas, métricas y asociaciones con clientes.', completeMetrics + list);
+  const syncActions = `<div class="admin-module-actions">${btn('Sincronización parcial', "syncCsatClientAssociations('partial')", 'secondary')}${btn('Sincronización completa', 'confirmCompleteCsatSynchronization()', 'primary')}</div><p class="field-note">La parcial asocia solo encuestas nuevas sin cliente. La completa revisa todas las coincidencias actuales por correo.</p>`;
+  adminModuleShell('encuestas', 'Encuestas', 'Consulta las respuestas, métricas y asociaciones con clientes.', syncActions + completeMetrics + list);
+}
+
+function confirmCompleteCsatSynchronization() {
+  modal('Sincronización completa', '<p>Se revisarán todas las encuestas y se actualizarán las asociaciones cuando el correo coincida con un cliente actual. Las respuestas sin coincidencia conservarán su asociación existente.</p><div class="modal-actions"><button class="button secondary" onclick="closeTopModal()">Cancelar</button><button class="button primary" onclick="runCompleteCsatSynchronization()">Sincronizar todo</button></div>', false);
+}
+
+async function runCompleteCsatSynchronization() {
+  closeTopModal();
+  await syncCsatClientAssociations('complete');
+}
+
+async function syncCsatClientAssociations(mode) {
+  startActivity(mode === 'partial' ? 'Sincronizando encuestas nuevas…' : 'Sincronizando todas las encuestas…');
+  try {
+    const { data, error } = await supabase.functions.invoke('sync-csat-clients', { body: { mode } });
+    if (error || data?.error) throw new Error(data?.error || errorText(error));
+    await adminSurveysView();
+    modal('Sincronización terminada', `<p>Se revisaron ${data.reviewed} encuesta${data.reviewed === 1 ? '' : 's'} y se actualizaron ${data.updated} asociación${data.updated === 1 ? '' : 'es'}.</p>`);
+  } catch (error) { modal('No fue posible sincronizar las encuestas', `<p>${esc(errorText(error))}</p>`); }
+  finally { finishActivity(); }
 }
 
 async function signIn(event) { event.preventDefault(); const email = document.querySelector('#login-email').value.trim(); const password = document.querySelector('#login-password').value; const token = captchaToken('login'); const submit = event.target.querySelector('[type="submit"]'); if (!token) return loginView('Completa la verificación de seguridad para continuar.'); startActivity('Ingresando…'); if (submit) { submit.disabled = true; submit.textContent = 'Ingresando…'; } try { const { error } = await supabase.auth.signInWithPassword({ email, password, options: { captchaToken: token } }); if (error) { resetTurnstile('login'); return loginView('Revisa tu correo, contraseña y verificación de seguridad e inténtalo nuevamente.'); } await hydrate(); const { error: usageError } = await supabase.rpc('record_portal_login'); if (usageError) console.warn('No fue posible registrar el evento de uso.', usageError.message); location.hash = state.session?.user?.user_metadata?.force_password_change ? '#actualizar-clave' : state.profile?.role === 'admin' ? '#admin' : '#inicio'; } finally { finishActivity(); } }
@@ -992,7 +1013,7 @@ function returnLabel(v) { return ({ si: 'Sí', tal_vez: 'Tal vez', no: 'No' })[v
 function date(v) { return v ? new Intl.DateTimeFormat('es-CO', { dateStyle: 'medium' }).format(new Date(`${v.slice(0, 10)}T12:00:00`)) : 'Sin fecha'; }
 function money(v) { return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v); }
 
-Object.assign(window, { signIn, signOut, requestPasswordReset, updatePassword, submitCsat, projectInfo, projectPayments, surveyResponse, serviceInfo, openServiceReceipt, copyProjectLink, showClientForm, togglePortalAccess, createPortalClient, updatePortalClient, showClientEditForm, confirmClientAction, runClientAction, changeClientPage, showProjectForm, showProjectEditForm, createPortalProject, updatePortalProject, changeProjectPage, showServiceForm, showServiceEditForm, createClientService, updateClientService, setClientServiceActive, showRenewServiceForm, renewClientService, changeServicePage, showPaymentForm, showPaymentEditForm, createPortalPayment, updatePortalPayment, changePaymentPage, openPaymentReceipt, closeTopModal, copyTemporaryPassword, savePortalAppearance, addPortalService, setPortalServiceStatus, addPortalPaymentType, setPortalPaymentTypeStatus, addServiceRecurrence, setServiceRecurrenceStatus, saveServiceAlertSettings, togglePaymentDetails });
+Object.assign(window, { signIn, signOut, requestPasswordReset, updatePassword, submitCsat, projectInfo, projectPayments, surveyResponse, serviceInfo, openServiceReceipt, copyProjectLink, showClientForm, togglePortalAccess, createPortalClient, updatePortalClient, showClientEditForm, confirmClientAction, runClientAction, changeClientPage, showProjectForm, showProjectEditForm, createPortalProject, updatePortalProject, changeProjectPage, showServiceForm, showServiceEditForm, createClientService, updateClientService, setClientServiceActive, showRenewServiceForm, renewClientService, changeServicePage, showPaymentForm, showPaymentEditForm, createPortalPayment, updatePortalPayment, changePaymentPage, openPaymentReceipt, closeTopModal, copyTemporaryPassword, savePortalAppearance, addPortalService, setPortalServiceStatus, addPortalPaymentType, setPortalPaymentTypeStatus, addServiceRecurrence, setServiceRecurrenceStatus, saveServiceAlertSettings, togglePaymentDetails, syncCsatClientAssociations, confirmCompleteCsatSynchronization, runCompleteCsatSynchronization });
 supabase.auth.onAuthStateChange((event) => { if (event === 'PASSWORD_RECOVERY') location.hash = '#actualizar-clave'; if (event === 'SIGNED_OUT') { state.session = null; state.profile = null; } });
 window.addEventListener('hashchange', render);
 await hydrate();
