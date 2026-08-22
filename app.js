@@ -290,7 +290,7 @@ async function adminClientsView() {
   const totalPages = Math.max(1, Math.ceil((count || 0) / pageSize));
   if (state.clientPage > totalPages) { state.clientPage = totalPages; return adminClientsView(); }
   const list = data.length ? `<section class="admin-list">${data.map(clientCard).join('')}</section>${pagination(totalPages)}` : '<div class="empty">Aún no hay clientes registrados.</div>';
-  const body = `<div class="admin-module-actions">${btn('Crear cliente', 'showClientForm()', 'primary')}<label class="filter-select">Estado<select onchange="changeClientFilter(this.value)"><option value="todos" ${filter === 'todos' ? 'selected' : ''}>Mostrar todo</option><option value="activo" ${filter === 'activo' ? 'selected' : ''}>Activos</option><option value="inactivo" ${filter === 'inactivo' ? 'selected' : ''}>Inactivos</option></select></label></div>${list}`;
+  const body = `<div class="admin-module-actions">${btn('Crear cliente', 'showClientForm()', 'primary')}<label class="filter-select"><span>Filtrar por estado</span><select aria-label="Filtrar clientes por estado" onchange="changeClientFilter(this.value)"><option value="todos" ${filter === 'todos' ? 'selected' : ''}>Mostrar todo</option><option value="activo" ${filter === 'activo' ? 'selected' : ''}>Activos</option><option value="inactivo" ${filter === 'inactivo' ? 'selected' : ''}>Inactivos</option></select></label></div>${list}`;
   adminModuleShell('clientes', 'Clientes', 'Consulta los contactos y clientes con información registrada en el portal.', body);
 }
 
@@ -550,7 +550,7 @@ async function adminProjectsView() {
   const totalPages = Math.max(1, Math.ceil((count || 0) / pageSize));
   if (state.projectPage > totalPages) { state.projectPage = totalPages; return adminProjectsView(); }
   const list = data.length ? `<section class="admin-list">${data.map(projectCard).join('')}</section>${projectPagination(totalPages)}` : '<div class="empty">Aún no hay proyectos registrados.</div>';
-  const body = `<div class="admin-module-actions">${btn('Crear proyecto', 'showProjectForm()', 'primary')}<label class="filter-select">Estado<select onchange="changeProjectFilter(this.value)"><option value="todos" ${filter === 'todos' ? 'selected' : ''}>Mostrar todo</option><option value="planificado" ${filter === 'planificado' ? 'selected' : ''}>Planificados</option><option value="en_curso" ${filter === 'en_curso' ? 'selected' : ''}>En curso</option><option value="pausado" ${filter === 'pausado' ? 'selected' : ''}>Pausados</option><option value="finalizado" ${filter === 'finalizado' ? 'selected' : ''}>Finalizados</option></select></label></div>${list}`;
+  const body = `<div class="admin-module-actions">${btn('Crear proyecto', 'showProjectForm()', 'primary')}<label class="filter-select"><span>Filtrar por estado</span><select aria-label="Filtrar proyectos por estado" onchange="changeProjectFilter(this.value)"><option value="todos" ${filter === 'todos' ? 'selected' : ''}>Mostrar todo</option><option value="planificado" ${filter === 'planificado' ? 'selected' : ''}>Planificados</option><option value="en_curso" ${filter === 'en_curso' ? 'selected' : ''}>En curso</option><option value="pausado" ${filter === 'pausado' ? 'selected' : ''}>Pausados</option><option value="finalizado" ${filter === 'finalizado' ? 'selected' : ''}>Finalizados</option></select></label></div>${list}`;
   adminModuleShell('proyectos', 'Proyectos', 'Revisa los servicios en curso y el historial de proyectos registrados.', body);
 }
 
@@ -619,7 +619,7 @@ async function adminServicesView() {
     if (state.servicePage > totalPages) { state.servicePage = totalPages; return adminServicesView(); }
     const alertDays = Number(settings?.service_alert_days || 30);
     const list = data.length ? `<section class="admin-list">${data.map(service => adminServiceCard(service, alertDays)).join('')}</section>${servicePagination(totalPages)}` : '<div class="empty">Aún no hay servicios registrados.</div>';
-    const body = `<div class="admin-module-actions">${btn('Crear servicio', 'showServiceForm()', 'primary')}<label class="filter-select">Estado<select onchange="changeServiceFilter(this.value)"><option value="todos" ${filter === 'todos' ? 'selected' : ''}>Mostrar todo</option><option value="activo" ${filter === 'activo' ? 'selected' : ''}>Activos</option><option value="inactivo" ${filter === 'inactivo' ? 'selected' : ''}>Inactivos</option></select></label></div>${list}`;
+    const body = `<div class="admin-module-actions">${btn('Crear servicio', 'showServiceForm()', 'primary')}<label class="filter-select"><span>Filtrar por estado</span><select aria-label="Filtrar servicios por estado" onchange="changeServiceFilter(this.value)"><option value="todos" ${filter === 'todos' ? 'selected' : ''}>Mostrar todo</option><option value="activo" ${filter === 'activo' ? 'selected' : ''}>Activos</option><option value="inactivo" ${filter === 'inactivo' ? 'selected' : ''}>Inactivos</option></select></label></div>${list}`;
     adminModuleShell('servicios', 'Servicios', 'Gestiona renovaciones recurrentes, estados y comprobantes de cada cliente.', body);
   } catch (error) { dataError('Servicios', error); }
 }
@@ -717,7 +717,7 @@ async function adminPaymentsView() {
   const data = allPayments.slice(from, from + pageSize);
   state.payments = new Map(projectPayments.map(payment => [payment.id, payment]));
   const list = data.length ? `<section class="admin-list">${data.map(paymentCard).join('')}</section>${paymentPagination(totalPages)}` : '<div class="empty">Aún no hay pagos registrados.</div>';
-  const body = `<div class="admin-module-actions">${btn('Registrar pago', 'showPaymentForm()', 'primary')}<label class="filter-select">Estado<select onchange="changePaymentFilter(this.value)"><option value="todos" ${filter === 'todos' ? 'selected' : ''}>Mostrar todo</option><option value="pendiente" ${filter === 'pendiente' ? 'selected' : ''}>Pendientes</option><option value="confirmado" ${filter === 'confirmado' ? 'selected' : ''}>Confirmados</option></select></label></div>${list}`;
+  const body = `<div class="admin-module-actions">${btn('Registrar pago', 'showPaymentForm()', 'primary')}<label class="filter-select"><span>Filtrar por estado</span><select aria-label="Filtrar pagos por estado" onchange="changePaymentFilter(this.value)"><option value="todos" ${filter === 'todos' ? 'selected' : ''}>Mostrar todo</option><option value="pendiente" ${filter === 'pendiente' ? 'selected' : ''}>Pendientes</option><option value="confirmado" ${filter === 'confirmado' ? 'selected' : ''}>Confirmados</option></select></label></div>${list}`;
   adminModuleShell('pagos', 'Pagos', 'Consulta pagos de proyectos y renovaciones de servicios en un mismo lugar.', body);
 }
 
