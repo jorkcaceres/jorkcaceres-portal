@@ -6,6 +6,16 @@ create table if not exists public.portal_settings (
   updated_at timestamptz not null default now()
 );
 
+alter table public.portal_settings
+  add column if not exists default_clients_filter text not null default 'todos'
+    check (default_clients_filter in ('todos', 'activo', 'inactivo')),
+  add column if not exists default_projects_filter text not null default 'todos'
+    check (default_projects_filter in ('todos', 'planificado', 'en_curso', 'pausado', 'finalizado')),
+  add column if not exists default_services_filter text not null default 'todos'
+    check (default_services_filter in ('todos', 'activo', 'inactivo')),
+  add column if not exists default_payments_filter text not null default 'todos'
+    check (default_payments_filter in ('todos', 'pendiente', 'confirmado'));
+
 insert into public.portal_settings (id)
 values ('principal')
 on conflict (id) do nothing;
@@ -50,3 +60,4 @@ with check (
   bucket_id = 'portal-assets'
   and exists (select 1 from public.profiles where id = (select auth.uid()) and role = 'admin')
 );
+

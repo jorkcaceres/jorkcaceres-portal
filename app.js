@@ -3,7 +3,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.0';
 const app = document.querySelector('#app');
 const logo = 'assets/jorkcaceres-horizontal-negro.png';
 const supabase = createClient('https://zfzsigdyycgaqvbauffk.supabase.co', 'sb_publishable_K5khETTDgbkAmAOeiDg2Tw_gKfdxBeq');
-const state = { session: null, profile: null, clientPage: 1, projectPage: 1, paymentPage: 1, servicePage: 1, clients: new Map(), projects: new Map(), payments: new Map(), clientServices: new Map(), portalSettings: null, services: [], paymentTypes: [], recurrences: [] };
+const state = { session: null, profile: null, clientPage: 1, projectPage: 1, paymentPage: 1, servicePage: 1, surveyPage: 1, clientFilter: null, projectFilter: null, serviceFilter: null, paymentFilter: null, clients: new Map(), projects: new Map(), payments: new Map(), clientServices: new Map(), portalSettings: null, services: [], paymentTypes: [], recurrences: [] };
 const privateRoutes = new Set(['inicio', 'proyectos', 'servicios', 'encuestas', 'admin', 'admin-clientes', 'admin-proyectos', 'admin-servicios', 'admin-pagos', 'admin-encuestas', 'admin-portal']);
 const helpUrl = 'https://wa.me/573243062809?text=Hola%2C+necesito+ayuda.+Vengo+del+portal+de+Jorkc%C3%A1ceres';
 const turnstileSiteKey = '0x4AAAAAAEWb66YwTWh3cmmT';
@@ -71,7 +71,7 @@ async function loadClientFirstName() {
 
 async function loadPortalSettings(force = false) {
   if (state.portalSettings && !force) return state.portalSettings;
-  const { data, error } = await supabase.from('portal_settings').select('hero_desktop_url, hero_mobile_url, service_alert_days').eq('id', 'principal').maybeSingle();
+  const { data, error } = await supabase.from('portal_settings').select('hero_desktop_url, hero_mobile_url, service_alert_days, default_clients_filter, default_projects_filter, default_services_filter, default_payments_filter').eq('id', 'principal').maybeSingle();
   if (!error) state.portalSettings = data;
   return state.portalSettings;
 }
@@ -277,15 +277,20 @@ function adminModuleShell(section, title, description, body) {
 
 async function adminClientsView() {
   loading('Clientes');
+  const settings = await loadPortalSettings();
   const pageSize = 10;
+  const filter = state.clientFilter ?? settings?.default_clients_filter ?? 'todos';
+  state.clientFilter = filter;
   const from = (state.clientPage - 1) * pageSize;
-  const { data, error, count } = await supabase.from('clients').select('*', { count: 'exact' }).order('created_at', { ascending: false }).range(from, from + pageSize - 1);
+  let query = supabase.from('clients').select('*', { count: 'exact' }).order('created_at', { ascending: false });
+  if (filter !== 'todos') query = query.eq('status', filter);
+  const { data, error, count } = await query.range(from, from + pageSize - 1);
   if (error) return dataError('Clientes', error);
   state.clients = new Map(data.map(client => [client.id, client]));
   const totalPages = Math.max(1, Math.ceil((count || 0) / pageSize));
   if (state.clientPage > totalPages) { state.clientPage = totalPages; return adminClientsView(); }
   const list = data.length ? `<section class="admin-list">${data.map(clientCard).join('')}</section>${pagination(totalPages)}` : '<div class="empty">Aún no hay clientes registrados.</div>';
-  const body = `<div class="admin-module-actions">${btn('Crear cliente', 'showClientForm()', 'primary')}</div>${list}`;
+  const body = `<div class="admin-module-actions">${btn('Crear cliente', 'showClientForm()', 'primary')}<label class="filter-select">Estado<select onchange="changeClientFilter(this.value)"><option value="todos" ${filter === 'todos' ? 'selected' : ''}>Mostrar todo</option><option value="activo" ${filter === 'activo' ? 'selected' : ''}>Activos</option><option value="inactivo" ${filter === 'inactivo' ? 'selected' : ''}>Inactivos</option></select></label></div>${list}`;
   adminModuleShell('clientes', 'Clientes', 'Consulta los contactos y clientes con información registrada en el portal.', body);
 }
 
@@ -310,6 +315,8 @@ function changeClientPage(page) {
   adminClientsView();
 }
 
+function changeClientFilter(value) { state.clientFilter = value; state.clientPage = 1; adminClientsView(); }
+
 function showClientForm() {
   modal('Crear cliente', `<p class="modal-lead">Registra la información de contacto y decide si esta persona tendrá acceso al portal.</p><form class="form client-form" onsubmit="createPortalClient(event)"><div class="form-columns"><label class="field">Nombre<input name="first_name" autocomplete="given-name" required></label><label class="field">Apellido<input name="last_name" autocomplete="family-name" required></label></div><label class="field">Correo electrónico<input name="email" type="email" autocomplete="email" required></label><label class="field">Teléfono<input name="phone" type="tel" autocomplete="tel"></label><label class="field">Empresa<input name="company_name" autocomplete="organization"></label><label class="access-choice"><input id="client-portal-access" type="checkbox" name="portal_access" onchange="togglePortalAccess(this.checked)"><span><strong>Dar acceso al portal</strong><small id="portal-access-help">Se registrará como contacto; no podrá iniciar sesión.</small></span></label><div class="modal-actions"><button type="button" class="button secondary" onclick="this.closest('.modal-backdrop').remove()">Cancelar</button>${btn('Crear cliente', '', 'primary', 'submit')}</div></form>`, false);
 }
@@ -328,7 +335,7 @@ async function adminPortalView() {
   const serviceList = services.length ? `<div class="service-list">${services.map(service => `<article class="service-item"><div><strong>${esc(service.name)}</strong><span class="status ${service.active ? '' : 'progress'}">${service.active ? 'Activo' : 'Inactivo'}</span></div>${btn(service.active ? 'Inactivar' : 'Activar', `setPortalServiceStatus('${service.id}', ${!service.active})`, 'small secondary')}</article>`).join('')}</div>` : '<div class="empty">Aún no hay servicios configurados.</div>';
   const paymentTypeList = paymentTypes.length ? `<div class="service-list">${paymentTypes.map(type => `<article class="service-item"><div><strong>${esc(type.name)}</strong><span class="status ${type.active ? '' : 'progress'}">${type.active ? 'Activo' : 'Inactivo'}</span></div>${btn(type.active ? 'Inactivar' : 'Activar', `setPortalPaymentTypeStatus('${type.id}', ${!type.active})`, 'small secondary')}</article>`).join('')}</div>` : '<div class="empty">Aún no hay tipos de pago configurados.</div>';
   const recurrenceList = recurrences.length ? `<div class="service-list">${recurrences.map(recurrence => `<article class="service-item"><div><strong>${esc(recurrence.name)}</strong><small>Cada ${recurrence.interval_value} ${recurrence.interval_unit}</small><span class="status ${recurrence.active ? '' : 'progress'}">${recurrence.active ? 'Activa' : 'Inactiva'}</span></div>${btn(recurrence.active ? 'Inactivar' : 'Activar', `setServiceRecurrenceStatus('${recurrence.id}', ${!recurrence.active})`, 'small secondary')}</article>`).join('')}</div>` : '<div class="empty">Aún no hay recurrencias configuradas.</div>';
-  const body = `<div class="settings-accordions"><details class="settings-card"><summary><span><strong>Imagen principal</strong><small>Personaliza la imagen de bienvenida del portal.</small></span></summary><div class="accordion-content"><form class="form portal-settings-form" onsubmit="savePortalAppearance(event)"><div class="image-settings-grid"><label class="field">Imagen escritorio <small>Proporción recomendada: 4:5 vertical (por ejemplo, 1600 × 2000 px) · JPG, PNG o WebP.</small><input name="hero_desktop" type="file" accept="image/jpeg,image/png,image/webp">${desktopPreview}</label><label class="field">Imagen móvil <small>Proporción recomendada: 4:5 vertical (por ejemplo, 1080 × 1350 px) · JPG, PNG o WebP.</small><input name="hero_mobile" type="file" accept="image/jpeg,image/png,image/webp">${mobilePreview}</label></div>${btn('Guardar imagen', '', 'primary', 'submit')}</form></div></details><details class="settings-card"><summary><span><strong>Servicios disponibles</strong><small>Define los servicios que podrás asociar a los proyectos.</small></span></summary><div class="accordion-content"><form class="service-form" onsubmit="addPortalService(event)"><label class="field">Nuevo servicio<input name="service_name" placeholder="Nombre del servicio" required></label>${btn('Agregar servicio', '', 'primary', 'submit')}</form>${serviceList}</div></details><details class="settings-card"><summary><span><strong>Tipos de pago</strong><small>Define los tipos de pago que podrás registrar en los proyectos.</small></span></summary><div class="accordion-content"><form class="service-form" onsubmit="addPortalPaymentType(event)"><label class="field">Nuevo tipo de pago<input name="payment_type_name" placeholder="Por ejemplo: Pago mensual" required></label>${btn('Agregar tipo', '', 'primary', 'submit')}</form>${paymentTypeList}</div></details><details class="settings-card"><summary><span><strong>Recurrencias de servicios</strong><small>Administra cómo se programa cada renovación.</small></span></summary><div class="accordion-content"><form class="service-form" onsubmit="addServiceRecurrence(event)"><label class="field">Nombre de la recurrencia<input name="recurrence_name" placeholder="Por ejemplo: Trimestral" required></label><div class="form-columns"><label class="field">Cada<input name="interval_value" type="number" min="1" max="120" value="1" required></label><label class="field">Unidad<select name="interval_unit" required><option value="meses">Meses</option><option value="anios">Años</option><option value="dias">Días</option></select></label></div>${btn('Agregar recurrencia', '', 'primary', 'submit')}</form>${recurrenceList}</div></details><details class="settings-card"><summary><span><strong>Alertas de renovación</strong><small>Define con cuánta anticipación el cliente verá la alerta.</small></span></summary><div class="accordion-content"><form class="service-form" onsubmit="saveServiceAlertSettings(event)"><label class="field">Días de anticipación<input name="service_alert_days" type="number" min="1" max="365" value="${esc(settings.service_alert_days || 30)}" required></label>${btn('Guardar alerta', '', 'primary', 'submit')}</form></div></details></div>`;
+  const body = `<div class="settings-accordions"><details class="settings-card"><summary><span><strong>Imagen principal</strong><small>Personaliza la imagen de bienvenida del portal.</small></span></summary><div class="accordion-content"><form class="form portal-settings-form" onsubmit="savePortalAppearance(event)"><div class="image-settings-grid"><label class="field">Imagen escritorio <small>Proporción recomendada: 4:5 vertical (por ejemplo, 1600 × 2000 px) · JPG, PNG o WebP.</small><input name="hero_desktop" type="file" accept="image/jpeg,image/png,image/webp">${desktopPreview}</label><label class="field">Imagen móvil <small>Proporción recomendada: 4:5 vertical (por ejemplo, 1080 × 1350 px) · JPG, PNG o WebP.</small><input name="hero_mobile" type="file" accept="image/jpeg,image/png,image/webp">${mobilePreview}</label></div>${btn('Guardar imagen', '', 'primary', 'submit')}</form></div></details><details class="settings-card"><summary><span><strong>Filtros predeterminados</strong><small>Define el estado inicial de cada módulo administrativo.</small></span></summary><div class="accordion-content"><form class="form" onsubmit="saveDefaultFilters(event)"><div class="form-columns"><label class="field">Clientes<select name="default_clients_filter"><option value="todos" ${settings.default_clients_filter === 'todos' ? 'selected' : ''}>Mostrar todo</option><option value="activo" ${settings.default_clients_filter === 'activo' ? 'selected' : ''}>Activos</option><option value="inactivo" ${settings.default_clients_filter === 'inactivo' ? 'selected' : ''}>Inactivos</option></select></label><label class="field">Proyectos<select name="default_projects_filter"><option value="todos" ${settings.default_projects_filter === 'todos' ? 'selected' : ''}>Mostrar todo</option><option value="planificado" ${settings.default_projects_filter === 'planificado' ? 'selected' : ''}>Planificados</option><option value="en_curso" ${settings.default_projects_filter === 'en_curso' ? 'selected' : ''}>En curso</option><option value="pausado" ${settings.default_projects_filter === 'pausado' ? 'selected' : ''}>Pausados</option><option value="finalizado" ${settings.default_projects_filter === 'finalizado' ? 'selected' : ''}>Finalizados</option></select></label><label class="field">Servicios<select name="default_services_filter"><option value="todos" ${settings.default_services_filter === 'todos' ? 'selected' : ''}>Mostrar todo</option><option value="activo" ${settings.default_services_filter === 'activo' ? 'selected' : ''}>Activos</option><option value="inactivo" ${settings.default_services_filter === 'inactivo' ? 'selected' : ''}>Inactivos</option></select></label><label class="field">Pagos<select name="default_payments_filter"><option value="todos" ${settings.default_payments_filter === 'todos' ? 'selected' : ''}>Mostrar todo</option><option value="pendiente" ${settings.default_payments_filter === 'pendiente' ? 'selected' : ''}>Pendientes</option><option value="confirmado" ${settings.default_payments_filter === 'confirmado' ? 'selected' : ''}>Confirmados</option></select></label></div>${btn('Guardar filtros', '', 'primary', 'submit')}</form></div></details><details class="settings-card"><summary><span><strong>Servicios disponibles</strong><small>Define los servicios que podrás asociar a los proyectos.</small></span></summary><div class="accordion-content"><form class="service-form" onsubmit="addPortalService(event)"><label class="field">Nuevo servicio<input name="service_name" placeholder="Nombre del servicio" required></label>${btn('Agregar servicio', '', 'primary', 'submit')}</form>${serviceList}</div></details><details class="settings-card"><summary><span><strong>Tipos de pago</strong><small>Define los tipos de pago que podrás registrar en los proyectos.</small></span></summary><div class="accordion-content"><form class="service-form" onsubmit="addPortalPaymentType(event)"><label class="field">Nuevo tipo de pago<input name="payment_type_name" placeholder="Por ejemplo: Pago mensual" required></label>${btn('Agregar tipo', '', 'primary', 'submit')}</form>${paymentTypeList}</div></details><details class="settings-card"><summary><span><strong>Recurrencias de servicios</strong><small>Administra cómo se programa cada renovación.</small></span></summary><div class="accordion-content"><form class="service-form" onsubmit="addServiceRecurrence(event)"><label class="field">Nombre de la recurrencia<input name="recurrence_name" placeholder="Por ejemplo: Trimestral" required></label><div class="form-columns"><label class="field">Cada<input name="interval_value" type="number" min="1" max="120" value="1" required></label><label class="field">Unidad<select name="interval_unit" required><option value="meses">Meses</option><option value="anios">Años</option><option value="dias">Días</option></select></label></div>${btn('Agregar recurrencia', '', 'primary', 'submit')}</form>${recurrenceList}</div></details><details class="settings-card"><summary><span><strong>Alertas de renovación</strong><small>Define con cuánta anticipación el cliente verá la alerta.</small></span></summary><div class="accordion-content"><form class="service-form" onsubmit="saveServiceAlertSettings(event)"><label class="field">Días de anticipación<input name="service_alert_days" type="number" min="1" max="365" value="${esc(settings.service_alert_days || 30)}" required></label>${btn('Guardar alerta', '', 'primary', 'submit')}</form></div></details></div>`;
   adminModuleShell('portal', 'Personalizar portal', 'Administra la imagen principal que ven los clientes al ingresar.', body);
 }
 
@@ -445,6 +452,35 @@ async function saveServiceAlertSettings(event) {
   finally { submit.disabled = false; submit.textContent = 'Guardar alerta'; }
 }
 
+async function saveDefaultFilters(event) {
+  event.preventDefault();
+  const form = new FormData(event.target);
+  const values = {
+    default_clients_filter: form.get('default_clients_filter'),
+    default_projects_filter: form.get('default_projects_filter'),
+    default_services_filter: form.get('default_services_filter'),
+    default_payments_filter: form.get('default_payments_filter'),
+  };
+  const allowed = {
+    default_clients_filter: ['todos', 'activo', 'inactivo'],
+    default_projects_filter: ['todos', 'planificado', 'en_curso', 'pausado', 'finalizado'],
+    default_services_filter: ['todos', 'activo', 'inactivo'],
+    default_payments_filter: ['todos', 'pendiente', 'confirmado'],
+  };
+  if (Object.entries(values).some(([key, value]) => !allowed[key].includes(value))) return modal('Valores no válidos', '<p>Selecciona una opción permitida para cada módulo.</p>');
+  const submit = event.target.querySelector('[type="submit"]');
+  submit.disabled = true; submit.textContent = 'Guardando…';
+  try {
+    const { error } = await supabase.from('portal_settings').upsert({ id: 'principal', ...values }, { onConflict: 'id' });
+    if (error) throw error;
+    state.portalSettings = { ...(state.portalSettings || {}), ...values };
+    state.clientFilter = state.projectFilter = state.serviceFilter = state.paymentFilter = null;
+    state.clientPage = state.projectPage = state.servicePage = state.paymentPage = 1;
+    modal('Filtros actualizados', '<p>Los módulos administrativos usarán esta selección al abrirse.</p>');
+  } catch (error) { modal('No fue posible guardar los filtros', `<p>${esc(errorText(error))}</p>`); }
+  finally { submit.disabled = false; submit.textContent = 'Guardar filtros'; }
+}
+
 async function uploadPortalImage(file, variant) {
   if (!file) return null;
   if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) throw new Error('Usa una imagen JPG, PNG o WebP.');
@@ -501,15 +537,20 @@ function confirmClientAction(id, action) {
 
 async function adminProjectsView() {
   loading('Proyectos');
+  const settings = await loadPortalSettings();
   const pageSize = 10;
+  const filter = state.projectFilter ?? settings?.default_projects_filter ?? 'todos';
+  state.projectFilter = filter;
   const from = (state.projectPage - 1) * pageSize;
-  const { data, error, count } = await supabase.from('projects').select('*, clients(first_name,last_name,company_name)', { count: 'exact' }).order('project_date', { ascending: false }).range(from, from + pageSize - 1);
+  let query = supabase.from('projects').select('*, clients(first_name,last_name,company_name)', { count: 'exact' }).order('project_date', { ascending: false });
+  if (filter !== 'todos') query = query.eq('status', filter);
+  const { data, error, count } = await query.range(from, from + pageSize - 1);
   if (error) return dataError('Proyectos', error);
   state.projects = new Map(data.map(project => [project.id, project]));
   const totalPages = Math.max(1, Math.ceil((count || 0) / pageSize));
   if (state.projectPage > totalPages) { state.projectPage = totalPages; return adminProjectsView(); }
   const list = data.length ? `<section class="admin-list">${data.map(projectCard).join('')}</section>${projectPagination(totalPages)}` : '<div class="empty">Aún no hay proyectos registrados.</div>';
-  const body = `<div class="admin-module-actions">${btn('Crear proyecto', 'showProjectForm()', 'primary')}</div>${list}`;
+  const body = `<div class="admin-module-actions">${btn('Crear proyecto', 'showProjectForm()', 'primary')}<label class="filter-select">Estado<select onchange="changeProjectFilter(this.value)"><option value="todos" ${filter === 'todos' ? 'selected' : ''}>Mostrar todo</option><option value="planificado" ${filter === 'planificado' ? 'selected' : ''}>Planificados</option><option value="en_curso" ${filter === 'en_curso' ? 'selected' : ''}>En curso</option><option value="pausado" ${filter === 'pausado' ? 'selected' : ''}>Pausados</option><option value="finalizado" ${filter === 'finalizado' ? 'selected' : ''}>Finalizados</option></select></label></div>${list}`;
   adminModuleShell('proyectos', 'Proyectos', 'Revisa los servicios en curso y el historial de proyectos registrados.', body);
 }
 
@@ -528,6 +569,7 @@ function changeProjectPage(page) {
   state.projectPage = Math.max(1, page);
   adminProjectsView();
 }
+function changeProjectFilter(value) { state.projectFilter = value; state.projectPage = 1; adminProjectsView(); }
 
 async function projectClientOptions(selectedId = '') {
   const { data, error } = await supabase.from('clients').select('id,first_name,last_name,company_name').order('first_name', { ascending: true });
@@ -565,15 +607,19 @@ async function adminServicesView() {
   try {
     const [settings, recurrences] = await Promise.all([loadPortalSettings(true), loadServiceRecurrences(true)]);
     const pageSize = 10;
+    const filter = state.serviceFilter ?? settings?.default_services_filter ?? 'todos';
+    state.serviceFilter = filter;
     const from = (state.servicePage - 1) * pageSize;
-    const { data, error, count } = await supabase.from('client_services').select('*, clients(first_name,last_name,company_name), portal_service_recurrences(name), service_renewals(id,renewal_date,status,receipt_path,renewed_at)', { count: 'exact' }).order('created_at', { ascending: false }).range(from, from + pageSize - 1);
+    let query = supabase.from('client_services').select('*, clients(first_name,last_name,company_name), portal_service_recurrences(name), service_renewals(id,renewal_date,status,receipt_path,renewed_at)', { count: 'exact' }).order('created_at', { ascending: false });
+    if (filter !== 'todos') query = query.eq('active', filter === 'activo');
+    const { data, error, count } = await query.range(from, from + pageSize - 1);
     if (error) return dataError('Servicios', error);
     state.clientServices = new Map(data.map(service => [service.id, service]));
     const totalPages = Math.max(1, Math.ceil((count || 0) / pageSize));
     if (state.servicePage > totalPages) { state.servicePage = totalPages; return adminServicesView(); }
     const alertDays = Number(settings?.service_alert_days || 30);
     const list = data.length ? `<section class="admin-list">${data.map(service => adminServiceCard(service, alertDays)).join('')}</section>${servicePagination(totalPages)}` : '<div class="empty">Aún no hay servicios registrados.</div>';
-    const body = `<div class="admin-module-actions">${btn('Crear servicio', 'showServiceForm()', 'primary')}</div>${list}`;
+    const body = `<div class="admin-module-actions">${btn('Crear servicio', 'showServiceForm()', 'primary')}<label class="filter-select">Estado<select onchange="changeServiceFilter(this.value)"><option value="todos" ${filter === 'todos' ? 'selected' : ''}>Mostrar todo</option><option value="activo" ${filter === 'activo' ? 'selected' : ''}>Activos</option><option value="inactivo" ${filter === 'inactivo' ? 'selected' : ''}>Inactivos</option></select></label></div>${list}`;
     adminModuleShell('servicios', 'Servicios', 'Gestiona renovaciones recurrentes, estados y comprobantes de cada cliente.', body);
   } catch (error) { dataError('Servicios', error); }
 }
@@ -595,6 +641,7 @@ function servicePagination(totalPages) {
 }
 
 function changeServicePage(page) { state.servicePage = Math.max(1, page); adminServicesView(); }
+function changeServiceFilter(value) { state.serviceFilter = value; state.servicePage = 1; adminServicesView(); }
 
 async function loadServiceRecurrences(force = false) {
   if (state.recurrences.length && !force) return state.recurrences;
@@ -650,7 +697,10 @@ function showRenewServiceForm(renewalId) {
 async function adminPaymentsView() {
   loading('Pagos');
   try { await loadPortalPaymentTypes(true); } catch (error) { return dataError('Pagos', error); }
+  const settings = await loadPortalSettings();
   const pageSize = 10;
+  const filter = state.paymentFilter ?? settings?.default_payments_filter ?? 'todos';
+  state.paymentFilter = filter;
   const [projectResult, serviceResult] = await Promise.all([
     supabase.from('project_payments').select('*, projects(code,title,clients(first_name,last_name))').order('payment_date', { ascending: false }),
     supabase.from('service_renewals').select('*, client_services(name,amount,clients(first_name,last_name))').order('renewed_at', { ascending: false })
@@ -658,14 +708,16 @@ async function adminPaymentsView() {
   if (projectResult.error || serviceResult.error) return dataError('Pagos', projectResult.error || serviceResult.error);
   const projectPayments = (projectResult.data || []).map(payment => ({ ...payment, source: 'project', sort_date: payment.payment_date || payment.created_at }));
   const servicePayments = (serviceResult.data || []).filter(renewal => renewal.status === 'renovado').map(renewal => ({ ...renewal, source: 'service', sort_date: renewal.renewed_at || renewal.created_at }));
-  const allPayments = [...projectPayments, ...servicePayments].sort((a, b) => String(b.sort_date).localeCompare(String(a.sort_date)));
+  const allPayments = [...projectPayments, ...servicePayments]
+    .filter(payment => filter === 'todos' || (filter === 'pendiente' ? payment.source === 'project' && payment.status === 'pendiente' : (payment.source === 'service' || payment.status === 'confirmado')))
+    .sort((a, b) => String(b.sort_date).localeCompare(String(a.sort_date)));
   const totalPages = Math.max(1, Math.ceil(allPayments.length / pageSize));
   if (state.paymentPage > totalPages) { state.paymentPage = totalPages; return adminPaymentsView(); }
   const from = (state.paymentPage - 1) * pageSize;
   const data = allPayments.slice(from, from + pageSize);
   state.payments = new Map(projectPayments.map(payment => [payment.id, payment]));
   const list = data.length ? `<section class="admin-list">${data.map(paymentCard).join('')}</section>${paymentPagination(totalPages)}` : '<div class="empty">Aún no hay pagos registrados.</div>';
-  const body = `<div class="admin-module-actions">${btn('Registrar pago', 'showPaymentForm()', 'primary')}</div>${list}`;
+  const body = `<div class="admin-module-actions">${btn('Registrar pago', 'showPaymentForm()', 'primary')}<label class="filter-select">Estado<select onchange="changePaymentFilter(this.value)"><option value="todos" ${filter === 'todos' ? 'selected' : ''}>Mostrar todo</option><option value="pendiente" ${filter === 'pendiente' ? 'selected' : ''}>Pendientes</option><option value="confirmado" ${filter === 'confirmado' ? 'selected' : ''}>Confirmados</option></select></label></div>${list}`;
   adminModuleShell('pagos', 'Pagos', 'Consulta pagos de proyectos y renovaciones de servicios en un mismo lugar.', body);
 }
 
@@ -687,6 +739,7 @@ function changePaymentPage(page) {
   state.paymentPage = Math.max(1, page);
   adminPaymentsView();
 }
+function changePaymentFilter(value) { state.paymentFilter = value; state.paymentPage = 1; adminPaymentsView(); }
 
 async function paymentProjectOptions(selectedId = '') {
   const { data, error } = await supabase.from('projects').select('id,code,title,clients(first_name,last_name)').order('project_date', { ascending: false });
@@ -749,10 +802,20 @@ async function adminSurveysView() {
   const expectationFulfillment = data.length ? Math.round((data.filter(item => ['completamente', 'gran_parte'].includes(item.expectation)).length / data.length) * 100) : '—';
   const repurchaseIntent = data.length ? Math.round((data.filter(item => item.return_intent === 'si').length / data.length) * 100) : '—';
   const completeMetrics = `<section class="metric-grid"><article class="metric-card"><span>Respuestas</span><strong>${data.length}</strong></article><article class="metric-card"><span>Promedio</span><strong>${average}${data.length ? ' / 5' : ''}</strong></article><article class="metric-card"><span>CSAT</span><strong>${csat}${data.length ? '%' : ''}</strong></article><article class="metric-card"><span>Expectativas</span><strong>${expectationFulfillment}${data.length ? '%' : ''}</strong></article><article class="metric-card"><span>Recompra</span><strong>${repurchaseIntent}${data.length ? '%' : ''}</strong></article></section>`;
-  const list = data.length ? `<section class="admin-list">${data.map(response => { const client = response.clients ? `${response.clients.first_name} ${response.clients.last_name}${response.clients.company_name ? ` · ${response.clients.company_name}` : ''}` : 'Sin cliente asociado'; return `<article class="admin-list-card"><div><p class="eyebrow">CSAT · ${date(response.submitted_at)}</p><h2>${response.satisfaction} / 5 · ${expectation(response.expectation)}</h2><p>${esc(response.email)}${response.improvement ? ` · ${esc(response.improvement)}` : ''}</p><p class="association ${response.client_id ? '' : 'unmatched'}">${response.client_id ? `Cliente asociado: ${esc(client)}` : 'Sin coincidencia de correo con un cliente'}</p></div><span class="status">Respondida</span></article>`; }).join('')}</section>` : '<div class="empty">Aún no hay respuestas de satisfacción.</div>';
+  const pageSize = 10;
+  const totalPages = Math.max(1, Math.ceil(data.length / pageSize));
+  if (state.surveyPage > totalPages) { state.surveyPage = totalPages; return adminSurveysView(); }
+  const pageData = data.slice((state.surveyPage - 1) * pageSize, state.surveyPage * pageSize);
+  const list = data.length ? `<section class="admin-list">${pageData.map(response => { const client = response.clients ? `${response.clients.first_name} ${response.clients.last_name}${response.clients.company_name ? ` · ${response.clients.company_name}` : ''}` : 'Sin cliente asociado'; return `<article class="admin-list-card"><div><p class="eyebrow">CSAT · ${date(response.submitted_at)}</p><h2>${response.satisfaction} / 5 · ${expectation(response.expectation)}</h2><p>${esc(response.email)}${response.improvement ? ` · ${esc(response.improvement)}` : ''}</p><p class="association ${response.client_id ? '' : 'unmatched'}">${response.client_id ? `Cliente asociado: ${esc(client)}` : 'Sin coincidencia de correo con un cliente'}</p></div><span class="status">Respondida</span></article>`; }).join('')}</section>${surveyPagination(totalPages)}` : '<div class="empty">Aún no hay respuestas de satisfacción.</div>';
   const syncActions = `<div class="admin-module-actions">${btn('Sincronización parcial', "syncCsatClientAssociations('partial')", 'secondary')}${btn('Sincronización completa', 'confirmCompleteCsatSynchronization()', 'primary')}</div><p class="field-note">La parcial asocia solo encuestas nuevas sin cliente. La completa revisa todas las coincidencias actuales por correo.</p>`;
   adminModuleShell('encuestas', 'Encuestas', 'Consulta las respuestas, métricas y asociaciones con clientes.', completeMetrics + syncActions + list);
 }
+
+function surveyPagination(totalPages) {
+  if (totalPages <= 1) return '';
+  return `<nav class="pagination" aria-label="Paginación de encuestas"><button class="button small secondary" onclick="changeSurveyPage(${state.surveyPage - 1})" ${state.surveyPage === 1 ? 'disabled' : ''}>Anterior</button><span>Página ${state.surveyPage} de ${totalPages}</span><button class="button small secondary" onclick="changeSurveyPage(${state.surveyPage + 1})" ${state.surveyPage === totalPages ? 'disabled' : ''}>Siguiente</button></nav>`;
+}
+function changeSurveyPage(page) { state.surveyPage = Math.max(1, page); adminSurveysView(); }
 
 function confirmCompleteCsatSynchronization() {
   modal('Sincronización completa', '<p>Se revisarán todas las encuestas y se actualizarán las asociaciones cuando el correo coincida con un cliente actual. Las respuestas sin coincidencia conservarán su asociación existente.</p><div class="modal-actions"><button class="button secondary" onclick="closeTopModal()">Cancelar</button><button class="button primary" onclick="runCompleteCsatSynchronization()">Sincronizar todo</button></div>', false);
@@ -1013,7 +1076,7 @@ function returnLabel(v) { return ({ si: 'Sí', tal_vez: 'Tal vez', no: 'No' })[v
 function date(v) { return v ? new Intl.DateTimeFormat('es-CO', { dateStyle: 'medium' }).format(new Date(`${v.slice(0, 10)}T12:00:00`)) : 'Sin fecha'; }
 function money(v) { return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v); }
 
-Object.assign(window, { signIn, signOut, requestPasswordReset, updatePassword, submitCsat, projectInfo, projectPayments, surveyResponse, serviceInfo, openServiceReceipt, copyProjectLink, showClientForm, togglePortalAccess, createPortalClient, updatePortalClient, showClientEditForm, confirmClientAction, runClientAction, changeClientPage, showProjectForm, showProjectEditForm, createPortalProject, updatePortalProject, changeProjectPage, showServiceForm, showServiceEditForm, createClientService, updateClientService, setClientServiceActive, showRenewServiceForm, renewClientService, changeServicePage, showPaymentForm, showPaymentEditForm, createPortalPayment, updatePortalPayment, changePaymentPage, openPaymentReceipt, closeTopModal, copyTemporaryPassword, savePortalAppearance, addPortalService, setPortalServiceStatus, addPortalPaymentType, setPortalPaymentTypeStatus, addServiceRecurrence, setServiceRecurrenceStatus, saveServiceAlertSettings, togglePaymentDetails, syncCsatClientAssociations, confirmCompleteCsatSynchronization, runCompleteCsatSynchronization });
+Object.assign(window, { signIn, signOut, requestPasswordReset, updatePassword, submitCsat, projectInfo, projectPayments, surveyResponse, serviceInfo, openServiceReceipt, copyProjectLink, showClientForm, togglePortalAccess, createPortalClient, updatePortalClient, showClientEditForm, confirmClientAction, runClientAction, changeClientPage, changeClientFilter, showProjectForm, showProjectEditForm, createPortalProject, updatePortalProject, changeProjectPage, changeProjectFilter, showServiceForm, showServiceEditForm, createClientService, updateClientService, setClientServiceActive, showRenewServiceForm, renewClientService, changeServicePage, changeServiceFilter, showPaymentForm, showPaymentEditForm, createPortalPayment, updatePortalPayment, changePaymentPage, changePaymentFilter, openPaymentReceipt, closeTopModal, copyTemporaryPassword, savePortalAppearance, addPortalService, setPortalServiceStatus, addPortalPaymentType, setPortalPaymentTypeStatus, addServiceRecurrence, setServiceRecurrenceStatus, saveServiceAlertSettings, saveDefaultFilters, togglePaymentDetails, changeSurveyPage, syncCsatClientAssociations, confirmCompleteCsatSynchronization, runCompleteCsatSynchronization });
 supabase.auth.onAuthStateChange((event) => { if (event === 'PASSWORD_RECOVERY') location.hash = '#actualizar-clave'; if (event === 'SIGNED_OUT') { state.session = null; state.profile = null; } });
 window.addEventListener('hashchange', render);
 await hydrate();
