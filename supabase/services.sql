@@ -34,16 +34,34 @@ create table if not exists public.service_renewals (
   id uuid primary key default gen_random_uuid(),
   service_id uuid not null references public.client_services(id) on delete cascade,
   renewal_date date not null,
-  status text not null default 'programado' check (status in ('programado', 'renovado')),
+  status text not null default 'programado' check (status in ('programado', 'renovado', 'cancelado')),
   receipt_path text,
   renewed_at date,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   check (
-    (status = 'programado' and receipt_path is null and renewed_at is null)
+    (status in ('programado', 'cancelado') and receipt_path is null and renewed_at is null)
     or (status = 'renovado' and receipt_path is not null and renewed_at is not null)
   )
 );
+
+-- Un servicio inactivo conserva su historial, pero no mantiene cobros futuros.
+alter table public.service_renewals drop constraint if exists service_renewals_status_check;
+alter table public.service_renewals drop constraint if exists service_renewals_check;
+alter table public.service_renewals add constraint service_renewals_status_check
+  check (status in ('programado', 'renovado', 'cancelado'));
+alter table public.service_renewals add constraint service_renewals_receipt_state_check
+  check (
+    (status in ('programado', 'cancelado') and receipt_path is null and renewed_at is null)
+    or (status = 'renovado' and receipt_path is not null and renewed_at is not null)
+  );
+
+update public.service_renewals as renewal
+set status = 'cancelado', updated_at = now()
+from public.client_services as service
+where service.id = renewal.service_id
+  and service.active = false
+  and renewal.status = 'programado';
 
 create unique index if not exists service_renewals_one_open_cycle
   on public.service_renewals(service_id)

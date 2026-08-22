@@ -59,6 +59,14 @@ export default {
       if (!serviceId || typeof body.active !== 'boolean') return json({ error: 'La acción solicitada no es válida.' }, 400)
       const { error } = await ctx.supabaseAdmin.from('client_services').update({ active: body.active, updated_at: new Date().toISOString() }).eq('id', serviceId)
       if (error) return json({ error: 'No fue posible actualizar el servicio.' }, 400)
+      if (!body.active) {
+        const { error: renewalError } = await ctx.supabaseAdmin
+          .from('service_renewals')
+          .update({ status: 'cancelado', updated_at: new Date().toISOString() })
+          .eq('service_id', serviceId)
+          .eq('status', 'programado')
+        if (renewalError) return json({ error: 'El servicio fue inactivado, pero no se pudo cancelar su renovación futura.' }, 400)
+      }
       return json({ ok: true })
     }
 
@@ -125,10 +133,28 @@ export default {
     if (action === 'update') {
       const serviceId = textValue(body.service_id)
       if (!serviceId) return json({ error: 'No fue posible identificar el servicio.' }, 400)
+      const { data: existingService, error: existingServiceError } = await ctx.supabaseAdmin
+        .from('client_services')
+        .select('id,active')
+        .eq('id', serviceId)
+        .maybeSingle()
+      if (existingServiceError || !existingService) return json({ error: 'El servicio no existe.' }, 404)
       const { error: serviceError } = await ctx.supabaseAdmin.from('client_services').update(values).eq('id', serviceId)
       if (serviceError) return json({ error: 'No fue posible actualizar el servicio.' }, 400)
-      const { error: renewalError } = await ctx.supabaseAdmin.from('service_renewals').update({ renewal_date: renewalDate, updated_at: new Date().toISOString() }).eq('service_id', serviceId).eq('status', 'programado')
-      if (renewalError) return json({ error: 'No fue posible actualizar la próxima renovación.' }, 400)
+      if (existingService.active) {
+        const { data: openRenewal, error: openRenewalError } = await ctx.supabaseAdmin
+          .from('service_renewals')
+          .select('id')
+          .eq('service_id', serviceId)
+          .eq('status', 'programado')
+          .maybeSingle()
+        if (openRenewalError) return json({ error: 'No fue posible consultar la próxima renovación.' }, 400)
+        const renewalRequest = openRenewal
+          ? ctx.supabaseAdmin.from('service_renewals').update({ renewal_date: renewalDate, updated_at: new Date().toISOString() }).eq('id', openRenewal.id)
+          : ctx.supabaseAdmin.from('service_renewals').insert({ service_id: serviceId, renewal_date: renewalDate, status: 'programado' })
+        const { error: renewalError } = await renewalRequest
+        if (renewalError) return json({ error: 'No fue posible actualizar la próxima renovación.' }, 400)
+      }
       return json({ ok: true })
     }
 

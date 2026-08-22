@@ -160,6 +160,7 @@ function renewalRemainingDays(value) {
 function renewalStatus(renewal, alertDays = 30) {
   if (!renewal) return 'Sin programar';
   if (renewal.status === 'renovado') return 'Renovado';
+  if (renewal.status === 'cancelado') return 'Cancelado';
   const days = renewalRemainingDays(renewal.renewal_date);
   if (days < 0) return 'Vencido';
   if (days <= alertDays) return 'Próximo a vencer';
@@ -180,18 +181,24 @@ async function servicesView() {
       const recurrence = service.portal_service_recurrences?.name || 'Sin recurrencia';
       const remaining = renewal ? renewalRemainingDays(renewal.renewal_date) : null;
       const statusLabel = service.active === false ? 'Inactivo' : (renewal ? renewalStatus(renewal, alertDays) : 'Sin programar');
-      return `<article class="card"><div class="card-top"><div><p class="eyebrow">${esc(recurrence)}</p><h3>${esc(service.name)}</h3></div><span class="status ${service.active === false ? 'progress' : renewalStatusClass(renewal, alertDays)}">${statusLabel}</span></div><p>${renewal ? `Próxima renovación: ${date(renewal.renewal_date)}${service.active === false ? '' : remaining !== null ? ` · ${remaining < 0 ? `Venció hace ${Math.abs(remaining)} días` : remaining === 0 ? 'Vence hoy' : `${remaining} días restantes`}` : ''}` : 'No hay una renovación programada.'}</p><div class="item-grid"><span>Valor<strong>${service.amount === null ? 'Por definir' : money(service.amount)}</strong></span><span>Recurrencia<strong>${esc(recurrence)}</strong></span></div>${btn('Ver detalles', `serviceInfo('${service.id}')`, 'small secondary')}</article>`;
+      const renewalDescription = service.active === false
+        ? 'Este servicio está inactivo. Conservas el historial de pagos realizados.'
+        : renewal ? `Próxima renovación: ${date(renewal.renewal_date)}${remaining !== null ? ` · ${remaining < 0 ? `Venció hace ${Math.abs(remaining)} días` : remaining === 0 ? 'Vence hoy' : `${remaining} días restantes`}` : ''}` : 'No hay una renovación programada.';
+      return `<article class="card"><div class="card-top"><div><p class="eyebrow">${esc(recurrence)}</p><h3>${esc(service.name)}</h3></div><span class="status ${service.active === false ? 'progress' : renewalStatusClass(renewal, alertDays)}">${statusLabel}</span></div><p>${renewalDescription}</p><div class="item-grid"><span>Valor<strong>${service.amount === null ? 'Por definir' : money(service.amount)}</strong></span><span>Recurrencia<strong>${esc(recurrence)}</strong></span></div>${btn('Ver detalles', `serviceInfo('${service.id}')`, 'small secondary')}</article>`;
     }).join('') : '<div class="empty">Aún no tienes servicios activos registrados en el portal.</div>';
     app.innerHTML = `${header()}<main class="page">${breadcrumbs([{ label: 'Portal', href: '#inicio' }, { label: 'Servicios' }])}<h1>Servicios</h1><p class="lead">Consulta las renovaciones de tus servicios, sus estados y comprobantes disponibles.</p><div class="card-grid">${cards}</div></main>${footer()}`;
   } catch (error) { dataError('Servicios', error); }
 }
 
 async function serviceInfo(id) {
-  const { data: service, error } = await supabase.from('client_services').select('id,name,amount,observations,portal_service_recurrences(name),service_renewals(id,renewal_date,status,receipt_path,renewed_at)').eq('id', id).single();
+  const { data: service, error } = await supabase.from('client_services').select('id,name,amount,observations,active,portal_service_recurrences(name),service_renewals(id,renewal_date,status,receipt_path,renewed_at)').eq('id', id).single();
   if (error) return modal('No fue posible abrir el servicio', `<p>${esc(errorText(error))}</p>`);
-  const history = (service.service_renewals || []).sort((a, b) => String(b.renewal_date).localeCompare(String(a.renewal_date)));
+  const history = (service.service_renewals || [])
+    .filter(renewal => service.active !== false || renewal.status !== 'cancelado')
+    .filter(renewal => service.active !== false || renewal.status === 'renovado')
+    .sort((a, b) => String(b.renewal_date).localeCompare(String(a.renewal_date)));
   const rows = history.map(renewal => `<article class="payment-detail-card"><span class="payment-code">${date(renewal.renewal_date)}</span><span class="status ${renewalStatusClass(renewal)}">${renewalStatus(renewal)}</span><p class="payment-summary">${renewal.status === 'renovado' ? `Renovado el ${date(renewal.renewed_at)}` : 'Renovación pendiente de confirmación'}</p>${renewal.receipt_path ? btn('Ver comprobante', `openServiceReceipt('${esc(renewal.receipt_path)}')`, 'small secondary') : ''}</article>`).join('');
-  modal(esc(service.name), `<p><strong>Recurrencia:</strong> ${esc(service.portal_service_recurrences?.name || 'No registrada')}</p><p><strong>Valor:</strong> ${service.amount === null ? 'Por definir' : money(service.amount)}</p><p><strong>Observaciones:</strong><br>${esc(service.observations || 'No hay observaciones registradas.')}</p><p><strong>Renovaciones</strong></p><div class="payment-detail-list">${rows || '<p>No hay renovaciones registradas.</p>'}</div>`);
+  modal(esc(service.name), `<p><strong>Recurrencia:</strong> ${esc(service.portal_service_recurrences?.name || 'No registrada')}</p><p><strong>Valor:</strong> ${service.amount === null ? 'Por definir' : money(service.amount)}</p><p><strong>Observaciones:</strong><br>${esc(service.observations || 'No hay observaciones registradas.')}</p>${service.active === false ? '<p class="meta">Este servicio está inactivo. No tiene renovaciones ni cobros futuros programados.</p>' : ''}<p><strong>Renovaciones</strong></p><div class="payment-detail-list">${rows || (service.active === false ? '<p>No hay renovaciones confirmadas.</p>' : '<p>No hay renovaciones registradas.</p>')}</div>`);
 }
 
 async function surveysView() {
@@ -552,7 +559,10 @@ function adminServiceCard(service, alertDays) {
   const clientName = service.clients ? `${service.clients.first_name} ${service.clients.last_name}${service.clients.company_name ? ` · ${service.clients.company_name}` : ''}` : 'Cliente no disponible';
   const active = service.active !== false;
   const renewalText = renewal ? `${date(renewal.renewal_date)} · ${renewalStatus(renewal, alertDays)}` : 'Sin renovación programada';
-  return `<article class="admin-list-card"><div><p class="eyebrow">${esc(service.portal_service_recurrences?.name || 'Sin recurrencia')}</p><h2>${esc(service.name)}</h2><p>${esc(clientName)} · ${service.amount === null ? 'Valor por definir' : money(service.amount)} · ${renewalText}</p><div class="client-actions">${btn('Modificar servicio', `showServiceEditForm('${service.id}')`, 'small secondary')}${renewal && active ? btn('Confirmar renovación', `showRenewServiceForm('${renewal.id}')`, 'small') : ''}${btn(active ? 'Inactivar servicio' : 'Reactivar servicio', `setClientServiceActive('${service.id}', ${!active})`, 'small secondary')}</div></div><span class="status ${active ? (renewal ? renewalStatusClass(renewal, alertDays) : 'progress') : 'progress'}">${active ? (renewal ? renewalStatus(renewal, alertDays) : 'Sin programar') : 'Inactivo'}</span></article>`;
+  const detailText = active
+    ? `${esc(clientName)} · ${service.amount === null ? 'Valor por definir' : money(service.amount)} · ${renewalText}`
+    : `${esc(clientName)} · Servicio inactivo. No tiene renovaciones ni cobros futuros programados.`;
+  return `<article class="admin-list-card"><div><p class="eyebrow">${esc(service.portal_service_recurrences?.name || 'Sin recurrencia')}</p><h2>${esc(service.name)}</h2><p>${detailText}</p><div class="client-actions">${btn('Modificar servicio', `showServiceEditForm('${service.id}')`, 'small secondary')}${renewal && active ? btn('Confirmar renovación', `showRenewServiceForm('${renewal.id}')`, 'small') : ''}${btn(active ? 'Inactivar servicio' : 'Reactivar servicio', `setClientServiceActive('${service.id}', ${!active})`, 'small secondary')}</div></div><span class="status ${active ? (renewal ? renewalStatusClass(renewal, alertDays) : 'progress') : 'progress'}">${active ? (renewal ? renewalStatus(renewal, alertDays) : 'Sin programar') : 'Inactivo'}</span></article>`;
 }
 
 function servicePagination(totalPages) {
