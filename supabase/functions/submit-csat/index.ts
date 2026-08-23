@@ -1,6 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.57.0'
 
-const origin = 'https://portal.jorkcaceres.com'
+const origin = 'https://portal-qa.jorkcaceres.com'
 const corsHeaders = {
   'Access-Control-Allow-Origin': origin,
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -44,7 +44,7 @@ Deno.serve(async (request) => {
     if (remoteIp) verification.append('remoteip', remoteIp)
     const challenge = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', { method: 'POST', body: verification })
     const result = await challenge.json()
-    if (!result.success || result.hostname !== 'portal.jorkcaceres.com') return json({ error: 'No fue posible validar la verificación de seguridad. Inténtalo nuevamente.' }, 403)
+    if (!result.success || result.hostname !== 'portal-qa.jorkcaceres.com') return json({ error: 'No fue posible validar la verificación de seguridad. Inténtalo nuevamente.' }, 403)
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',

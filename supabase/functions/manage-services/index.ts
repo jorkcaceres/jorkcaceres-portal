@@ -1,7 +1,7 @@
 import { withSupabase } from 'npm:@supabase/server@^1'
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': 'https://portal.jorkcaceres.com',
+  'Access-Control-Allow-Origin': 'https://portal-qa.jorkcaceres.com',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 

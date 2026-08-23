@@ -2,11 +2,11 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.0';
 
 const app = document.querySelector('#app');
 const logo = 'assets/jorkcaceres-horizontal-negro.png';
-const supabase = createClient('https://zfzsigdyycgaqvbauffk.supabase.co', 'sb_publishable_K5khETTDgbkAmAOeiDg2Tw_gKfdxBeq');
+const supabase = createClient('https://fkejwwqshddislthqgho.supabase.co', 'sb_publishable_9R883UGPlNQKYNcaDJAMtQ_Jwn_rn8I');
 const state = { session: null, profile: null, clientPage: 1, projectPage: 1, paymentPage: 1, servicePage: 1, surveyPage: 1, clientFilter: null, projectFilter: null, serviceFilter: null, paymentFilter: null, clients: new Map(), projects: new Map(), payments: new Map(), clientServices: new Map(), portalSettings: null, services: [], paymentTypes: [], recurrences: [] };
 const privateRoutes = new Set(['inicio', 'proyectos', 'servicios', 'encuestas', 'admin', 'admin-clientes', 'admin-proyectos', 'admin-servicios', 'admin-pagos', 'admin-encuestas', 'admin-portal']);
 const helpUrl = 'https://wa.me/573243062809?text=Hola%2C+necesito+ayuda.+Vengo+del+portal+de+Jorkc%C3%A1ceres';
-const turnstileSiteKey = '0x4AAAAAAEWb66YwTWh3cmmT';
+const turnstileSiteKey = '0x4AAAAAAEY7EGSywvd9Ub0s';
 const turnstileScriptUrl = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
 const turnstileWidgets = new Map();
 const footer = () => '<footer class="footer">© 2026 Jorkcáceres. Portal para clientes. V1.1</footer>';
