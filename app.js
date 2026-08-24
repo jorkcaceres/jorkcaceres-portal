@@ -48,6 +48,25 @@ function recoveryView() {
   app.innerHTML = `<section class="login"><div class="login-panel"><a class="brand" href="#login"><img src="${logo}" alt="Jorkcáceres" /></a><div class="login-content"><p class="eyebrow">Restablecer contraseña</p><h1>Crea una nueva clave.</h1><p class="lead">${description}</p><form class="form" onsubmit="updatePassword(event)"><label class="field">Nueva contraseña<input id="new-password" type="password" minlength="8" autocomplete="new-password" required></label><label class="field">Confirmar contraseña<input id="confirm-password" type="password" minlength="8" autocomplete="new-password" required></label>${btn('Guardar contraseña', '', 'primary', 'submit')}</form>${mandatory ? '<button class="text-link recovery-signout" onclick="signOut()">Cerrar sesión</button>' : ''}</div></div><aside class="login-aside"><article class="announcement"><span class="tag">Portal seguro</span><h2>Tu cuenta está protegida.</h2><p>Después de guardar tu nueva contraseña podrás ingresar con normalidad.</p></article></aside></section>${footer()}`;
 }
 
+function officialChannels() {
+  return `<section class="section official-channels">
+    <div class="section-heading official-channels-heading">
+      <div>
+        <p class="eyebrow">Contacto</p>
+        <h2>Canales oficiales</h2>
+        <p class="lead">Comunícate por los canales oficiales de Jorkcáceres o conoce más sobre nuestro trabajo.</p>
+      </div>
+      <p class="updated-at">Última actualización: <time datetime="2026-08-24">24 de agosto de 2026</time></p>
+    </div>
+    <div class="channel-grid">
+      <a class="channel-card" href="mailto:ceo@jorkcaceres.com"><span>Correo electrónico</span><strong>ceo@jorkcaceres.com</strong></a>
+      <a class="channel-card" href="${helpUrl}" target="_blank" rel="noreferrer"><span>WhatsApp</span><strong>+57 324 306 2809</strong></a>
+      <a class="channel-card" href="https://jorkcaceres.com" target="_blank" rel="noreferrer"><span>Sitio web</span><strong>jorkcaceres.com</strong></a>
+      <a class="channel-card channel-card-update" href="https://jorkcaceres.com/actualizacion-de-datos/" target="_blank" rel="noreferrer"><span>Actualización de datos</span><strong>Actualiza tus datos</strong><small>Recibirás un correo de comprobación para validar que la información sea correcta.</small></a>
+    </div>
+  </section>`;
+}
+
 async function homeView() {
   const email = state.session?.user?.email || 'bienvenido';
   const [settings, firstName, clientServices] = await Promise.all([loadPortalSettings(), loadClientFirstName(), loadClientServices()]);
@@ -59,7 +78,7 @@ async function homeView() {
     return renewal && renewalRemainingDays(renewal.renewal_date) <= alertDays;
   })());
   const alertSection = alerts.length ? `<section class="section"><div class="section-heading"><div><p class="eyebrow">Atención</p><h2>Próximas renovaciones</h2><p>Tienes servicios que requieren renovación en los próximos ${alertDays} días.</p></div></div><div class="card-grid">${alerts.map(service => { const renewal = openRenewal(service); const days = renewalRemainingDays(renewal.renewal_date); return `<article class="card"><div class="card-top"><div><p class="eyebrow">Servicio</p><h3>${esc(service.name)}</h3></div><span class="status ${renewalStatusClass(renewal, alertDays)}">${renewalStatus(renewal, alertDays)}</span></div><p>Renovación: ${date(renewal.renewal_date)} · ${days < 0 ? `Venció hace ${Math.abs(days)} días` : days === 0 ? 'Vence hoy' : `${days} días restantes`}</p>${service.amount !== null ? `<p><strong>${money(service.amount)}</strong></p>` : ''}${btn('Ver servicio', "location.hash='#servicios'", 'small secondary')}</article>`; }).join('')}</div></section>` : '';
-  app.innerHTML = `${header()}<main class="page"><section class="hero"><div><p class="eyebrow">Hola, ${esc(greeting)}</p><h1>Tu espacio de trabajo con Jorkcáceres.</h1><p class="lead">Aquí encontrarás información relevante de los proyectos que realizamos juntos, tus servicios y las encuestas que has respondido.</p></div>${heroImage}</section>${alertSection}<section class="section"><div class="section-heading"><div><p class="eyebrow">Accesos</p><h2>¿Qué quieres consultar?</h2></div></div><div class="card-grid"><article class="card"><div class="card-icon">${cardIcons.projects}</div><h3>Proyectos</h3><p>Revisa el estado de tus proyectos, sus entregables, observaciones y pagos.</p>${btn('Ver proyectos', "location.hash='#proyectos'")}</article><article class="card"><div class="card-icon">${cardIcons.services}</div><h3>Servicios</h3><p>Consulta tus renovaciones, estados y comprobantes disponibles.</p>${btn('Ver servicios', "location.hash='#servicios'")}</article><article class="card"><div class="card-icon">${cardIcons.surveys}</div><h3>Encuestas</h3><p>Consulta las encuestas que has realizado y los resultados disponibles.</p>${btn('Ver encuestas', "location.hash='#encuestas'")}</article></div></section></main>${footer()}`;
+  app.innerHTML = `${header()}<main class="page"><section class="hero"><div><p class="eyebrow">Hola, ${esc(greeting)}</p><h1>Tu espacio de trabajo con Jorkcáceres.</h1><p class="lead">Aquí encontrarás información relevante de los proyectos que realizamos juntos, tus servicios y las encuestas que has respondido.</p></div>${heroImage}</section>${alertSection}<section class="section"><div class="section-heading"><div><p class="eyebrow">Accesos</p><h2>¿Qué quieres consultar?</h2></div></div><div class="card-grid"><article class="card"><div class="card-icon">${cardIcons.projects}</div><h3>Proyectos</h3><p>Revisa el estado de tus proyectos, sus entregables, observaciones y pagos.</p>${btn('Ver proyectos', "location.hash='#proyectos'")}</article><article class="card"><div class="card-icon">${cardIcons.services}</div><h3>Servicios</h3><p>Consulta tus renovaciones, estados y comprobantes disponibles.</p>${btn('Ver servicios', "location.hash='#servicios'")}</article><article class="card"><div class="card-icon">${cardIcons.surveys}</div><h3>Encuestas</h3><p>Consulta las encuestas que has realizado y los resultados disponibles.</p>${btn('Ver encuestas', "location.hash='#encuestas'")}</article></div></section>${officialChannels()}</main>${footer()}`;
 }
 
 async function loadClientFirstName() {
