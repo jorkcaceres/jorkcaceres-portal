@@ -193,6 +193,19 @@ fieldset.survey-question { min-inline-size: 0; margin: 0; padding: 25px 0; borde
 .metric-card span { color: var(--muted); font-size: .9rem; }
 .metric-card strong { color: var(--navy); font-size: 2rem; letter-spacing: -.05em; }
 
+
+.official-channels-heading { align-items: flex-end; }
+.official-channels-heading .lead { margin-bottom: 0; }
+.updated-at { margin: 0; color: var(--muted); font-size: 0.92rem; white-space: nowrap; }
+.channel-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.channel-card { display: grid; gap: 4px; min-height: 108px; padding: 20px; border: 1px solid var(--line); border-radius: 18px; background: #fff; color: var(--ink); text-decoration: none; transition: border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease; }
+.channel-card span { color: var(--navy); font-size: 0.8rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+.channel-card strong, .channel-card small { overflow-wrap: anywhere; }
+.channel-card strong { font-size: 1.03rem; }
+.channel-card small { color: var(--muted); line-height: 1.35; }
+.channel-card:hover { border-color: var(--blue); box-shadow: 0 8px 22px rgba(13, 55, 140, 0.1); transform: translateY(-2px); }
+.channel-card-update { background: var(--soft-blue); }
+
 @media (max-width: 760px) {
   .header { padding: 0 22px; height: 65px; }
   .brand img { width: 132px; }
@@ -207,7 +220,7 @@ fieldset.survey-question { min-inline-size: 0; margin: 0; padding: 25px 0; borde
   .hero { grid-template-columns: 1fr; padding: 28px; border-radius: 20px; }
   .hero-mark { min-height: 120px; }
   .hero-image { width: min(100%, 230px); }
-  .card-grid { grid-template-columns: 1fr; }
+  .card-grid, .channel-grid { grid-template-columns: 1fr; }
   .admin-grid, .metric-grid { grid-template-columns: 1fr; }
   .image-settings-grid { grid-template-columns: 1fr; }
   .service-form { align-items: stretch; flex-direction: column; }
@@ -219,6 +232,8 @@ fieldset.survey-question { min-inline-size: 0; margin: 0; padding: 25px 0; borde
   .item-grid { grid-template-columns: 1fr 1fr; }
   .section { margin-top: 40px; }
   .section-heading { align-items: start; flex-direction: column; }
+  .official-channels-heading { align-items: flex-start; gap: 10px; }
+  .updated-at { white-space: normal; }
   .scale { grid-template-columns: repeat(5, minmax(0,1fr)); gap: 5px; }
   .scale label { padding: 9px 3px; font-size: .7rem; }
   .form-columns { grid-template-columns: 1fr; }
