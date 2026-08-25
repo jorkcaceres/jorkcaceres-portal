@@ -634,7 +634,7 @@ async function adminServicesView() {
       : 'service_renewals(id,renewal_date,status,receipt_path,renewed_at)';
     let query = supabase.from('client_services').select(`*, clients(first_name,last_name,company_name), portal_service_recurrences(name), ${renewalsRelation}`, { count: 'exact' }).order('created_at', { ascending: false });
     if (filter === 'activo' || filter === 'inactivo') query = query.eq('active', filter === 'activo');
-    if (filter === 'vencido') query = query.eq('active', true).eq('service_renewals.status', 'programado').lt('service_renewals.renewal_date', colombiaToday());
+    if (filter === 'vencido') query = query.eq('service_renewals.status', 'programado').lt('service_renewals.renewal_date', colombiaToday());
     const { data, error, count } = await query.range(from, from + pageSize - 1);
     if (error) return dataError('Servicios', error);
     state.clientServices = new Map(data.map(service => [service.id, service]));
