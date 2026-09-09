@@ -92,6 +92,7 @@ export function createDiagnostic(deps) {
     current = { phase: 'done', record: { ...record, previous: data } }; view();
   }
   async function view() {
+    const wasConversation = Boolean(app.querySelector('.diagnostic-conversation'));
     load();
     if (!current && credentials) {
       shell('<h1>Retomando tu diagnóstico…</h1><p data-diagnostic-error hidden role="alert"></p><button class="button" data-diagnostic-resume>Reintentar</button><button class="button secondary" data-diagnostic-new>Iniciar uno nuevo</button>'); bind();
@@ -113,6 +114,7 @@ export function createDiagnostic(deps) {
       ${current.phase === 'review' ? `<section class="diagnostic-review"><h2>¿Esto refleja tu negocio?</h2><p>${esc(current.editorial?.summary || current.context)}</p>${AXES.map((a, index) => `<article class="card"><h3>${esc(a.name)}</h3>${a.criteria.map(c => `<p><strong>${esc(c.name)}${c.name.endsWith('?') ? '' : ':'}</strong> ${esc(current.editorial?.criteria?.[c.id] || current.facts[c.id]?.evidence || 'Información insuficiente.')}</p>`).join('')}${current.revisions < 2 ? `<button class="text-link" data-diagnostic-revise="${index}">Corregir este tema</button>` : ''}</article>`).join('')}${current.editorial ? '<button class="button primary" data-diagnostic-finish>Confirmar y generar diagnóstico</button>' : '<button class="button primary" data-diagnostic-prepare>Preparar explicación para revisar</button>'}</section>` : '<form data-diagnostic-message class="diagnostic-compose"><label class="field" for="diagnostic-answer">Tu respuesta<textarea id="diagnostic-answer" name="message" rows="3" maxlength="2000" required></textarea></label><button class="button primary" type="submit">Enviar respuesta</button></form>'}
       <p data-diagnostic-status role="status"></p><p data-diagnostic-error hidden role="alert"></p></div>`);
     bind(); const chat = app.querySelector('.diagnostic-chat'); chat.scrollTop = chat.scrollHeight;
+    if (!wasConversation && current.phase !== 'review') window.scrollTo(0, 0);
     app.querySelector('#diagnostic-answer')?.focus({ preventScroll: true });
   }
   async function history(admin = false) {

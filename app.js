@@ -1,6 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.0';
 
-import { createDiagnostic } from './diagnostic/ui.js?v=1.2.0';
+import { createDiagnostic } from './diagnostic/ui.js?v=1.2.1';
 
 const app = document.querySelector('#app');
 const logo = 'assets/jorkcaceres-horizontal-negro.png';
@@ -1111,4 +1111,5 @@ supabase.auth.onAuthStateChange((event) => { if (event === 'PASSWORD_RECOVERY') 
 window.addEventListener('hashchange', render);
 await hydrate();
 render();
+
 
