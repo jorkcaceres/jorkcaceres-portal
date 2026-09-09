@@ -10,6 +10,9 @@ const clean = (v: unknown, max = 1000) => typeof v === 'string' ? v.trim().slice
 const uuid = (v: unknown) => typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
 class UserError extends Error { constructor(message: string, public status = 400, public diagnosticCode = 'request_failed') { super(message); } }
 async function interpret(axis: typeof AXES[number], transcript: { role: string; content: string }[], context: string) {
+  if (/^(no s[eé]|no lo s[eé]|prefiero omitir|omitir)[.! ]*$/i.test(transcript.at(-1)?.content.trim() || '')) {
+    return { facts: Object.fromEntries(axis.criteria.map(c => [c.id, { status: 'unknown', evidence: '', steps: [], observations: [] }])), reply: '' };
+  }
   const key = Deno.env.get('OPENAI_API_KEY');
   const model = Deno.env.get('DIAGNOSTIC_MODEL') || 'gpt-4.1-2025-04-14';
   if (!key || !model) throw new UserError('El chat aún no está habilitado. Jorkcáceres está preparando este diagnóstico.', 503);
@@ -45,7 +48,11 @@ Rúbrica del eje: ${JSON.stringify(axis)}`;
   for (const criterion of axis.criteria) {
     const f = parsed.facts?.[criterion.id];
     if (!f?.steps || stepKeys.some(k => !['yes', 'no', 'unknown'].includes(f.steps[k]?.answer))) throw new UserError('No pude validar la interpretación. Inténtalo nuevamente.', 502);
-    const observations = stepKeys.map(k => ({ answer: f.steps[k].answer, evidence: quote(f.steps[k].evidence) }));
+    const observations = stepKeys.map(k => {
+      const evidence = quote(f.steps[k].evidence);
+      const uncertain = /^(no s[eé]|no lo s[eé]|prefiero omitir|omitir)[.! ]*$/i.test(evidence.trim());
+      return { answer: !evidence || uncertain ? 'unknown' : f.steps[k].answer, evidence: uncertain ? '' : evidence };
+    });
     const first = observations[0];
     const status = !first.evidence || first.answer === 'unknown' ? 'unknown' : first.answer === 'yes' ? 'observed' : 'absent';
     const steps = observations.map(o => o.answer === 'yes' && !/^(no\b|nunca\b|sin\b)/i.test(o.evidence.trim()) ? o.evidence : '');
@@ -84,9 +91,10 @@ Deno.serve(async request => {
       normalized.email = normalized.email.toLowerCase();
       if (!normalized.first_name || !normalized.last_name || !normalized.company_name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized.email) || !/^[+\d\s().-]{7,30}$/.test(normalized.phone)) throw new UserError('Revisa nombre, apellido, correo, teléfono y empresa. Si ingresaste con tu cuenta, pide a Jorkcáceres actualizar los datos del cliente.');
       const secretHash = await hash(b.secret);
-      const { data: prior } = await client.from('digital_diagnostic_sessions').select('secret_hash,state,expires_at').eq('id', b.id).maybeSingle();
+      const { data: prior } = await client.from('digital_diagnostic_sessions').select('secret_hash,state,expires_at,owner_id').eq('id', b.id).maybeSingle();
       if (prior) {
         if (prior.secret_hash !== secretHash || new Date(prior.expires_at) < new Date()) throw new UserError('Esta sesión no está disponible.', 403);
+        if (prior.owner_id !== owner || (prior.state.requiresAuth && !owner)) throw new UserError('Inicia sesión con la cuenta que comenzó este diagnóstico.', 401);
         return json({ id: b.id, state: prior.state });
       }
       if (!owner) {
@@ -100,7 +108,7 @@ Deno.serve(async request => {
         const { data, error } = await client.rpc('diagnostic_consume_quota', { bucket: String(bucket), max_uses: Number(max) });
         if (error || data !== true) throw new UserError('Alcanzamos el límite de diagnósticos por hoy. Inténtalo mañana.', 429);
       }
-      const state = { version: VERSION, phase: 'context', axis: 0, followup: false, turns: 0, revisions: 0, facts: {}, context: '', axisMessages: [], messages: [{ role: 'assistant', content: 'Cuéntame qué hace tu negocio, a quién atiende, cuántas personas participan y qué te gustaría mejorar primero.' }], lastRequest: null };
+      const state = { version: VERSION, requiresAuth: Boolean(owner), phase: 'context', axis: 0, followup: false, turns: 0, revisions: 0, facts: {}, context: '', axisMessages: [], messages: [{ role: 'assistant', content: 'Cuéntame qué hace tu negocio, a quién atiende, cuántas personas participan y qué te gustaría mejorar primero.' }], lastRequest: null };
       const { error } = await client.from('digital_diagnostic_sessions').insert({ id: b.id, secret_hash: secretHash, owner_id: owner, email: normalized.email, contact: normalized, state });
       if (error) throw new UserError('No pudimos iniciar el diagnóstico. Inténtalo nuevamente.', 500);
       return json({ id: b.id, state });
@@ -108,6 +116,7 @@ Deno.serve(async request => {
     if (!uuid(b.id) || !/^[a-f0-9]{64}$/.test(b.secret || '')) throw new UserError('Sesión inválida.', 403);
     const { data: row, error } = await client.from('digital_diagnostic_sessions').select('*').eq('id', b.id).eq('secret_hash', await hash(b.secret)).maybeSingle();
     if (error || !row || new Date(row.expires_at) < new Date()) throw new UserError('Esta conversación expiró o no está disponible. Puedes iniciar una nueva.', 403);
+    if (row.state.requiresAuth && !row.owner_id) throw new UserError('La cuenta asociada ya no tiene acceso a este diagnóstico.', 403);
     if (row.owner_id) {
       const { data } = await client.auth.getUser((request.headers.get('authorization') || '').replace(/^Bearer /i, ''));
       if (!data.user || data.user.id !== row.owner_id) throw new UserError('Inicia sesión con la cuenta que comenzó este diagnóstico.', 401);
@@ -174,3 +183,4 @@ Deno.serve(async request => {
     if (locked) await client.from('digital_diagnostic_sessions').update({ busy_until: null, lock_id: null }).eq('id', locked.id).eq('lock_id', locked.lock);
   }
 });
+
