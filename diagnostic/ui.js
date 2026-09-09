@@ -1,3 +1,4 @@
+import { countryOptions, normalizePhone } from './phone.js';
 import { AXES } from './model.js';
 import { escape as esc, reportHTML, makePDF } from './report.js';
 
@@ -31,6 +32,10 @@ export function createDiagnostic(deps) {
   async function start(e) {
     e.preventDefault(); if (busy) return;
     const form = new FormData(e.target), contact = Object.fromEntries(form);
+    if (!state.session) {
+      try { contact.phone = normalizePhone(contact.phone_country, contact.phone); delete contact.phone_country; }
+      catch (err) { error(err.message); return; }
+    }
     if (!credentials) { const secret = [...crypto.getRandomValues(new Uint8Array(32))].map(b => b.toString(16).padStart(2, '0')).join(''); credentials = { id: crypto.randomUUID(), secret }; save(); }
     busy = true; e.submitter.disabled = true;
     const ownerKey = key(), route = location.hash;
@@ -73,7 +78,7 @@ export function createDiagnostic(deps) {
       catch (err) { error(err.message); return; }
     }
     if (!current) {
-      shell(`<div class="diagnostic-intro"><p class="eyebrow">Diagnóstico digital · Primera versión</p><h1>Descubre cómo puede avanzar tu negocio.</h1><p class="lead">Una conversación de texto para entender tus capacidades digitales y elegir tus próximos pasos.</p><div class="diagnostic-tags"><span>6 temas</span><span>5–10 minutos estimados</span><span>Informe en PDF</span></div></div><div class="card diagnostic-entry"><h2>${state.session ? 'Comencemos con tu negocio' : 'Antes de conversar'}</h2><p>${state.session ? 'Usaremos los datos de tu cuenta. El resultado quedará en tu historial.' : 'Usaremos estos datos para identificar tu diagnóstico y asociarlo a tu historial por correo.'}</p><form class="form" data-diagnostic-start>${state.session ? '' : `<div class="form-columns"><label class="field">Nombre<input name="first_name" autocomplete="given-name" maxlength="150" required></label><label class="field">Apellido<input name="last_name" autocomplete="family-name" maxlength="150" required></label></div><label class="field">Correo electrónico<input type="email" name="email" autocomplete="email" maxlength="254" required></label><label class="field">Teléfono con WhatsApp<input type="tel" name="phone" autocomplete="tel" minlength="7" maxlength="30" required></label><label class="field">Empresa / negocio<input name="company_name" autocomplete="organization" maxlength="150" required></label><div id="diagnostic-turnstile"></div>`}<p class="field-note">Las respuestas se procesan con asistencia de IA para elaborar tu diagnóstico. Comparte prácticas generales; evita información confidencial. No se envían campañas comerciales desde este formulario.</p><p data-diagnostic-error hidden role="alert"></p><button class="button primary" type="submit">Comenzar conversación</button></form></div>${state.session ? '<p><a href="#diagnosticos">Consultar mi historial</a></p>' : '<p>¿Ya tienes acceso al portal? <a href="#login">Inicia sesión</a> para consultar tu historial.</p>'}`);
+      shell(`<div class="diagnostic-intro"><p class="eyebrow">Diagnóstico digital · Primera versión</p><h1>Descubre cómo puede avanzar tu negocio.</h1><p class="lead">Una conversación de texto para entender tus capacidades digitales y elegir tus próximos pasos.</p><div class="diagnostic-tags"><span>6 temas</span><span>5–10 minutos estimados</span><span>Informe en PDF</span></div></div><div class="card diagnostic-entry"><h2>${state.session ? 'Comencemos con tu negocio' : 'Antes de conversar'}</h2><p>${state.session ? 'Usaremos los datos de tu cuenta. El resultado quedará en tu historial.' : 'Usaremos estos datos para identificar tu diagnóstico y asociarlo a tu historial por correo.'}</p><form class="form" data-diagnostic-start>${state.session ? '' : `<div class="form-columns"><label class="field">Nombre<input name="first_name" autocomplete="given-name" maxlength="150" required></label><label class="field">Apellido<input name="last_name" autocomplete="family-name" maxlength="150" required></label></div><label class="field">Correo electrónico<input type="email" name="email" autocomplete="email" maxlength="254" required></label><fieldset class="diagnostic-phone"><legend>Teléfono con WhatsApp</legend><div class="diagnostic-phone-row"><label class="field">País<select name="phone_country" autocomplete="tel-country-code" required>${countryOptions().map(c => `<option value="${c.iso}" ${c.iso === 'CO' ? 'selected' : ''}>${esc(c.flag)} ${esc(c.name)} (+${c.code})</option>`).join('')}</select></label><label class="field">Número<input type="tel" inputmode="tel" name="phone" autocomplete="tel-national" placeholder="3007573858" maxlength="30" aria-describedby="phone-hint" required></label></div><p class="field-note" id="phone-hint">Escribe tu número sin el código del país.</p></fieldset><label class="field">Empresa / negocio<input name="company_name" autocomplete="organization" maxlength="150" required></label><div id="diagnostic-turnstile"></div>`}<p class="field-note">Las respuestas se procesan con asistencia de IA para elaborar tu diagnóstico. Comparte prácticas generales; evita información confidencial. No se envían campañas comerciales desde este formulario.</p><p data-diagnostic-error hidden role="alert"></p><button class="button primary" type="submit">Comenzar conversación</button></form></div>${state.session ? '<p><a href="#diagnosticos">Consultar mi historial</a></p>' : '<p>¿Ya tienes acceso al portal? <a href="#login">Inicia sesión</a> para consultar tu historial.</p>'}`);
       bind(); if (!state.session) { deps.clearCaptcha(); await mountTurnstile('diagnostic-turnstile', 'diagnostic'); } return;
     }
     if (current.phase === 'done') {
@@ -99,3 +104,4 @@ export function createDiagnostic(deps) {
   function clear() { current = null; credentials = null; pending = null; storageKey = ''; historyPage = 1; }
   return { view, history, clear };
 }
+
