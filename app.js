@@ -1,6 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.0';
 
-import { createDiagnostic } from './diagnostic/ui.js?v=1.2.1';
+import { createDiagnostic } from './diagnostic/ui.js?v=1.2.2';
 
 const app = document.querySelector('#app');
 const logo = 'assets/jorkcaceres-horizontal-negro.png';
@@ -250,7 +250,7 @@ const adminIcon = (type) => ({
   surveys: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>'
 }[type]);
 
-const adminNav = (active) => `<nav class="admin-nav"><a class="${active === 'admin' ? 'active' : ''}" href="#admin">Panorama</a><a class="${active === 'clientes' ? 'active' : ''}" href="#admin-clientes">Clientes</a><a class="${active === 'proyectos' ? 'active' : ''}" href="#admin-proyectos">Proyectos</a><a class="${active === 'servicios' ? 'active' : ''}" href="#admin-servicios">Servicios</a><a class="${active === 'pagos' ? 'active' : ''}" href="#admin-pagos">Pagos</a><a class="${active === 'encuestas' ? 'active' : ''}" href="#admin-encuestas">Encuestas</a><a class="${active === 'diagnosticos' ? 'active' : ''}" href="#admin-diagnosticos">Diagnósticos</a><a href="#admin-sugerencias">Sugerencias</a><a class="${active === 'portal' ? 'active' : ''}" href="#admin-portal">Portal</a></nav>`;
+const adminNav = (active) => `<nav class="admin-nav"><a class="${active === 'admin' ? 'active' : ''}" href="#admin">Panorama</a><a class="${active === 'clientes' ? 'active' : ''}" href="#admin-clientes">Clientes</a><a class="${active === 'proyectos' ? 'active' : ''}" href="#admin-proyectos">Proyectos</a><a class="${active === 'servicios' ? 'active' : ''}" href="#admin-servicios">Servicios</a><a class="${active === 'pagos' ? 'active' : ''}" href="#admin-pagos">Pagos</a><a class="${active === 'encuestas' ? 'active' : ''}" href="#admin-encuestas">Encuestas</a><a class="${active === 'diagnosticos' ? 'active' : ''}" href="#admin-diagnosticos">Diagnósticos</a><a class="${active === 'sugerencias' ? 'active' : ''}" href="#admin-sugerencias">Sugerencias</a><a class="${active === 'portal' ? 'active' : ''}" href="#admin-portal">Portal</a></nav>`;
 
 async function adminView() {
   loading('Panorama');
@@ -1105,11 +1105,10 @@ function date(v) { return v ? new Intl.DateTimeFormat('es-CO', { dateStyle: 'med
 function money(v) { return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v); }
 
 Object.assign(window, { signIn, signOut, requestPasswordReset, updatePassword, submitCsat, projectInfo, projectPayments, surveyResponse, serviceInfo, openServiceReceipt, copyProjectLink, showClientForm, togglePortalAccess, createPortalClient, updatePortalClient, showClientEditForm, confirmClientAction, runClientAction, changeClientPage, changeClientFilter, showProjectForm, showProjectEditForm, createPortalProject, updatePortalProject, changeProjectPage, changeProjectFilter, showServiceForm, showServiceEditForm, createClientService, updateClientService, setClientServiceActive, showRenewServiceForm, renewClientService, changeServicePage, changeServiceFilter, showPaymentForm, showPaymentEditForm, createPortalPayment, updatePortalPayment, changePaymentPage, changePaymentFilter, openPaymentReceipt, closeTopModal, copyTemporaryPassword, savePortalAppearance, addPortalService, setPortalServiceStatus, addPortalPaymentType, setPortalPaymentTypeStatus, addServiceRecurrence, setServiceRecurrenceStatus, saveServiceAlertSettings, saveDefaultFilters, togglePaymentDetails, changeSurveyPage, syncCsatClientAssociations, confirmCompleteCsatSynchronization, runCompleteCsatSynchronization });
-const diagnostic = createDiagnostic({ app, supabase, state, header, publicHeader, footer, mountTurnstile, captchaToken, resetTurnstile, helpUrl, adminNav, clearCaptcha: () => { const old = turnstileWidgets.get('diagnostic'); if (old && window.turnstile) { try { window.turnstile.remove(old.widgetId); } catch {} } turnstileWidgets.delete('diagnostic'); } });
+const diagnostic = createDiagnostic({ app, supabase, state, header, publicHeader, footer, mountTurnstile, captchaToken, resetTurnstile, helpUrl, adminNav, adminModuleShell, arrowIcon, clearCaptcha: () => { const old = turnstileWidgets.get('diagnostic'); if (old && window.turnstile) { try { window.turnstile.remove(old.widgetId); } catch {} } turnstileWidgets.delete('diagnostic'); } });
 
 supabase.auth.onAuthStateChange((event) => { if (event === 'PASSWORD_RECOVERY') location.hash = '#actualizar-clave'; if (event === 'SIGNED_OUT') { diagnostic.clear(); state.session = null; state.profile = null; } });
 window.addEventListener('hashchange', render);
 await hydrate();
 render();
-
 

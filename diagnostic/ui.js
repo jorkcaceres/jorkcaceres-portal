@@ -3,7 +3,8 @@ import { AXES, VERSION } from './model.js?v=1.1.0';
 import { escape as esc, reportHTML, makePDF } from './report.js?v=1.1.0';
 
 export function createDiagnostic(deps) {
-  const { app, supabase, state, header, publicHeader, footer, mountTurnstile, captchaToken, resetTurnstile, helpUrl, adminNav } = deps;
+  const { app, supabase, state, header, publicHeader, footer, mountTurnstile, captchaToken, resetTurnstile, helpUrl, adminNav, adminModuleShell, arrowIcon } = deps;
+  let suggestionsPage = 1, historyAdmin = null;
   let feedbackDraft = '', feedbackId = null, feedbackBusy = false;
   let busy = false, current = null, pending = null, storageKey = '', credentials = null, historyPage = 1;
   const key = () => `jc-diagnostic-v1:${state.session?.user?.id || 'guest'}`;
@@ -117,25 +118,39 @@ export function createDiagnostic(deps) {
     if (!wasConversation && current.phase !== 'review') window.scrollTo(0, 0);
     app.querySelector('#diagnostic-answer')?.focus({ preventScroll: true });
   }
+  function pager(page, count, attribute, label) {
+    const total = Math.ceil((count || 0) / 10);
+    if (total <= 1) return '';
+    return `<nav class="pagination" aria-label="Paginación de ${label}"><button class="button small secondary" ${attribute}="-1" ${page <= 1 ? 'disabled' : ''}>Anterior</button><span>Página ${page} de ${total}</span><button class="button small secondary" ${attribute}="1" ${page >= total ? 'disabled' : ''}>Siguiente</button></nav>`;
+  }
   async function history(admin = false) {
     load();
+    if (historyAdmin !== admin) { historyPage = 1; historyAdmin = admin; }
     const ownerKey = key(), route = location.hash;
-    shell(`${admin ? adminNav('diagnosticos') : '<a href="#inicio">Volver al inicio</a>'}<h1>${admin ? 'Diagnósticos digitales' : 'Mi historial digital'}</h1><p>Cargando evaluaciones…</p>`);
-    const { data, count, error: failure } = await supabase.from('digital_diagnostics').select('id,contact,context,result,created_at,model_version,email', { count: 'exact' }).order('created_at', { ascending: false }).range((historyPage - 1) * 10, historyPage * 10 - 1);
+    const renderHistory = body => admin
+      ? adminModuleShell('diagnosticos', 'Diagnósticos', 'Consulta las evaluaciones digitales de tus clientes y sus resultados.', body)
+      : shell(`<a href="#inicio">Volver al inicio</a><h1>Mi historial digital</h1><div class="diagnostic-actions"><a class="button primary" href="#diagnostico">Hacer un diagnóstico<span class="circle">${arrowIcon}</span></a></div>${body}`);
+    renderHistory('<p>Cargando evaluaciones…</p>');
+    const { data, count, error: failure } = await supabase.from('digital_diagnostics').select('id,contact,context,result,created_at,model_version,email', { count: 'exact' }).order('created_at', { ascending: false }).order('id', { ascending: false }).range((historyPage - 1) * 10, historyPage * 10 - 1);
     if (ownerKey !== key() || route !== location.hash) return;
-    shell(`${admin ? adminNav('diagnosticos') : '<a href="#inicio">Volver al inicio</a>'}<h1>${admin ? 'Diagnósticos digitales' : 'Mi historial digital'}</h1><a class="button primary" href="#diagnostico">Hacer un diagnóstico</a><p data-diagnostic-error hidden role="alert"></p><div class="diagnostic-history">${failure ? '<p>No pudimos cargar el historial. Vuelve a intentarlo.</p>' : !data.length ? '<p>Aún no hay diagnósticos. Tu primera evaluación será el punto de partida.</p>' : data.map((r, i) => `<article class="card"><h2>${esc(r.contact.company_name)}</h2><p>${new Date(r.created_at).toLocaleDateString('es-CO')} · ${r.result.coverage}/6 ejes · Modelo ${esc(r.model_version)}</p>${admin ? `<p>${esc(r.email)}</p>` : ''}<button class="button secondary" data-report="${i}">Ver resultado</button></article>`).join('')}</div><div class="diagnostic-actions"><button class="button secondary" data-page="-1" ${historyPage <= 1 ? 'disabled' : ''}>Anterior</button><span>Página ${historyPage}</span><button class="button secondary" data-page="1" ${historyPage * 10 >= (count || 0) ? 'disabled' : ''}>Siguiente</button></div>${!admin && data?.length > 1 ? '<p>Para comparar, revisa los perfiles de dos fechas: deben corresponder al mismo negocio y versión. Una diferencia declarada no prueba por sí sola una mejora.</p>' : ''}`);
+    if (!failure && historyPage > Math.max(1, Math.ceil((count || 0) / 10))) { historyPage = Math.max(1, Math.ceil((count || 0) / 10)); return history(admin); }
+    const cards = (data || []).map((r, i) => `<article class="${admin ? 'admin-list-card' : 'card'}"><div><p class="eyebrow">${new Date(r.created_at).toLocaleDateString('es-CO')} · ${r.result.coverage}/6 ejes · Modelo ${esc(r.model_version)}</p><h2>${esc(r.contact?.company_name || 'Negocio')}</h2>${admin ? `<p>${esc(r.email)}</p>` : ''}<div class="client-actions"><button class="button small secondary" data-report="${i}">Ver resultado<span class="circle">${arrowIcon}</span></button></div></div></article>`).join('');
+    renderHistory(`<p data-diagnostic-error hidden role="alert"></p>${failure ? '<div class="empty">No pudimos cargar el historial. Vuelve a intentarlo.</div>' : !data?.length ? `<div class="empty">${admin ? 'Aún no hay diagnósticos registrados.' : 'Aún no hay diagnósticos. Tu primera evaluación será el punto de partida.'}</div>` : `<section class="${admin ? 'admin-list' : 'diagnostic-history'}">${cards}</section>${pager(historyPage, count, 'data-page', 'diagnósticos')}`}${!admin && data?.length > 1 ? '<p>Para comparar, revisa los perfiles de dos fechas: deben corresponder al mismo negocio y versión. Una diferencia declarada no prueba por sí sola una mejora.</p>' : ''}`);
     app.querySelectorAll('[data-report]').forEach(b => b.addEventListener('click', () => { current = { phase: 'done', record: data[Number(b.dataset.report)] }; view(); }));
-    app.querySelectorAll('[data-page]').forEach(b => b.addEventListener('click', () => { historyPage = Math.max(1, historyPage + Number(b.dataset.page)); history(admin); }));
+    app.querySelectorAll('[data-page]').forEach(b => b.addEventListener('click', () => { historyPage += Number(b.dataset.page); history(admin); }));
   }
   async function suggestions() {
-    shell(`${adminNav('sugerencias')}<h1>Sugerencias del diagnóstico</h1><p>Cargando…</p>`);
+    const renderSuggestions = body => adminModuleShell('sugerencias', 'Sugerencias', 'Revisa los comentarios sobre el diagnóstico y da seguimiento a las mejoras propuestas.', body);
+    renderSuggestions('<p>Cargando sugerencias…</p>');
     const route = location.hash, ownerKey = key();
-    const { data, error: failure } = await supabase.from('digital_diagnostic_feedback').select('id,contact,message,phase,created_at,status').order('created_at', { ascending: false }).limit(100);
+    const { data, count, error: failure } = await supabase.from('digital_diagnostic_feedback').select('id,contact,message,phase,created_at,status', { count: 'exact' }).order('created_at', { ascending: false }).order('id', { ascending: false }).range((suggestionsPage - 1) * 10, suggestionsPage * 10 - 1);
     if (route !== location.hash || ownerKey !== key()) return;
-    shell(`${adminNav('sugerencias')}<h1>Sugerencias del diagnóstico</h1><p>Últimas 100 sugerencias. Solo visibles para administración.</p>${failure ? '<p>No pudimos cargar las sugerencias.</p>' : (data || []).map(r => `<article class="card"><h2>${esc(r.contact?.company_name)}</h2><p>${esc(r.contact?.email)} · ${new Date(r.created_at).toLocaleString('es-CO')}</p><p>${esc(r.message)}</p><p>Etapa: ${esc(r.phase)}</p><label class="field">Estado<select data-feedback-state="${r.id}">${['Nuevo','En revisión','Resuelto'].map(v => `<option ${v === r.status ? 'selected' : ''}>${v}</option>`).join('')}</select></label></article>`).join('') || '<p>Aún no hay sugerencias.</p>'}<p data-diagnostic-error role="alert" hidden></p>`);
+    if (!failure && suggestionsPage > Math.max(1, Math.ceil((count || 0) / 10))) { suggestionsPage = Math.max(1, Math.ceil((count || 0) / 10)); return suggestions(); }
+    const phases = { context: 'Contexto del negocio', axis: 'Conversación', review: 'Revisión del diagnóstico', done: 'Resultado' };
+    renderSuggestions(`${failure ? '<div class="empty">No pudimos cargar las sugerencias.</div>' : !data?.length ? '<div class="empty">Aún no hay sugerencias.</div>' : `<section class="admin-list">${data.map(r => `<article class="admin-list-card"><div><p class="eyebrow">${new Date(r.created_at).toLocaleString('es-CO')} · ${esc(phases[r.phase] || 'Diagnóstico')}</p><h2>${esc(r.contact?.company_name || 'Negocio')}</h2><p>${esc(r.contact?.email)}</p><div class="form"><p>${esc(r.message)}</p><label class="field">Estado<select data-feedback-state="${r.id}">${['Nuevo','En revisión','Resuelto'].map(v => `<option ${v === r.status ? 'selected' : ''}>${v}</option>`).join('')}</select></label></div></div></article>`).join('')}</section>${pager(suggestionsPage, count, 'data-suggestion-page', 'sugerencias')}`}<p data-diagnostic-error role="alert" hidden></p>`);
+    app.querySelectorAll('[data-suggestion-page]').forEach(b => b.onclick = () => { suggestionsPage += Number(b.dataset.suggestionPage); suggestions(); });
     app.querySelectorAll('[data-feedback-state]').forEach(select => select.onchange = async () => { select.disabled = true; const { error: failure } = await supabase.from('digital_diagnostic_feedback').update({ status: select.value }).eq('id', select.dataset.feedbackState); if (failure) error('No se pudo guardar el estado. Recarga para comprobarlo.'); select.disabled = false; });
   }
-  function clear() { feedbackDraft = ''; feedbackId = null; current = null; credentials = null; pending = null; storageKey = ''; historyPage = 1; }
+  function clear() { suggestionsPage = 1; historyAdmin = null; feedbackDraft = ''; feedbackId = null; current = null; credentials = null; pending = null; storageKey = ''; historyPage = 1; }
   return { view, history, suggestions, clear };
 }
-
