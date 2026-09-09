@@ -56,7 +56,7 @@ export default {
     const amount = amountValue(body.amount)
     const paymentDate = dateValue(body.payment_date)
     const status = textValue(body.status)
-    const validStatuses = ['pendiente', 'confirmado']
+    const validStatuses = ['pendiente', 'confirmado', 'cancelado']
 
     if (!projectId || !paymentType || amount === null || !validStatuses.includes(status) || (status === 'confirmado' && !paymentDate)) {
       return json({ error: 'Completa proyecto, tipo de pago, monto y estado. La fecha se requiere al confirmar el pago.' }, 400)

@@ -41,7 +41,7 @@ export default {
     const endDate = dateValue(body.end_date)
     const sharedFolderUrl = textValue(body.shared_folder_url) || null
     const observations = textValue(body.observations) || null
-    const validStatuses = ['planificado', 'en_curso', 'pausado', 'finalizado']
+    const validStatuses = ['planificado', 'en_curso', 'pausado', 'finalizado', 'cancelado']
 
     if (!clientId || !title || !service || !startDate || !validStatuses.includes(status)) {
       return json({ error: 'Completa cliente, título, servicio, estado y fecha de inicio.' }, 400)

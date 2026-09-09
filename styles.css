@@ -84,6 +84,7 @@ h3 { font-size: 1.22rem; margin-bottom: 6px; }
 .meta { color: var(--muted); font-size: .92rem; }
 .status { display: inline-block; padding: 5px 9px; border-radius: 999px; background: #e9f3dc; color: #355800; font-size: .82rem; font-weight: 700; }
 .status.progress { background: #fff2c9; color: #735c00; }
+.status.cancelled { background: #f2f2f0; color: #4b4b4b; }
 .card-top { display: flex; justify-content: space-between; gap: 12px; align-items: start; }
 .item-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 16px 0 18px; }
 .item-grid span { display: grid; gap: 3px; color: var(--muted); font-size: .83rem; }
