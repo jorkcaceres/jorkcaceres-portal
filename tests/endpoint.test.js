@@ -50,6 +50,23 @@ await import(`data:text/javascript;base64,${Buffer.from(stripTypeScriptTypes(sou
 const request = (body, requestOrigin = origin) => handler(new Request(origin, { method: 'POST', headers: { origin: requestOrigin, 'Content-Type': 'application/json' }, body: JSON.stringify(body) }));
 const session = () => ({ id: crypto.randomUUID(), secret: 'a'.repeat(64) });
 
+test('unknown answers never receive scores or consume model calls', async () => {
+  const s = session();
+  await request({ action: 'start', ...s, contact, token: 'fixture' });
+  await request({ action: 'message', ...s, requestId: crypto.randomUUID(), message: 'Vendemos por WhatsApp y revisamos prioridades cada viernes.' });
+  const before = calls;
+  for (let i = 0; i < AXES.length; i++) {
+    const r = await request({ action: 'message', ...s, requestId: crypto.randomUUID(), message: 'No sé.' });
+    assert.equal(r.status, 200);
+  }
+  const r = await request({ action: 'finish', ...s, requestId: crypto.randomUUID() });
+  const result = (await r.json()).state.result;
+  assert.equal(calls, before);
+  assert.equal(result.coverage, 0);
+  assert.ok(result.axes.every(a => a.score === null));
+  reports.delete(s.id);
+});
+
 test('endpoint rejects origin and disabled provider before storing contact', async () => {
   assert.equal((await request({ action: 'start' }, 'https://other.invalid')).status, 403);
   available = false;
@@ -89,5 +106,9 @@ test('signed-in contact is loaded from the server and cannot be spoofed', async 
   assert.equal(rows.get(s.id).email, 'prueba@example.invalid');
   user = { id: 'other-fixture' };
   assert.equal((await request({ action: 'resume', ...s })).status, 401);
+  assert.equal((await request({ action: 'start', ...s, contact })).status, 401);
+  rows.get(s.id).owner_id = null;
+  assert.equal((await request({ action: 'resume', ...s })).status, 403);
   user = null;
 });
+
