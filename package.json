@@ -1,0 +1,6 @@
+{
+  "name": "jorkcaceres-portal",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node --test tests/*.test.js", "check": "node --check app.js && node --check diagnostic/ui.js && node --check diagnostic/report.js" }
+}
