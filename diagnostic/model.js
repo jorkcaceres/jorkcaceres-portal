@@ -1,10 +1,10 @@
-export const VERSION = '1.0.0';
+export const VERSION = '1.1.0';
 export const LEVELS = ['No establecido', 'Inicial', 'En desarrollo', 'Gestionado', 'Medido', 'En mejora continua'];
 const criterion = (id, name, steps) => ({ id, name, steps });
 export const AXES = [
   { id: 'direction', name: 'Dirección y prioridades', question: '¿Qué te gustaría mejorar primero en tu negocio y cómo decides quién lo hace y cuándo revisar si funcionó?', criteria: [
-    criterion('priorities', 'Prioridades del negocio', ['Identifica una mejora digital ligada a una necesidad', 'Revisa prioridades de forma repetida', 'Tiene prioridades explícitas, responsable y recursos definidos', 'Mide resultados de esas prioridades', 'Describe ajustes sostenidos de prioridades basados en resultados']),
-    criterion('followup', 'Seguimiento de mejoras', ['Realiza alguna revisión de una mejora', 'Repite la revisión aunque sea informal', 'Tiene responsable y frecuencia definida para revisar', 'Compara resultados con objetivos definidos', 'Describe varios ciclos de revisión y ajustes con aprendizaje'])] },
+    criterion('priorities', '¿Tienes claro qué mejorar primero?' , ['Identifica una mejora digital ligada a una necesidad', 'Revisa prioridades de forma repetida', 'Tiene prioridades explícitas, responsable y recursos definidos', 'Mide resultados de esas prioridades', 'Describe ajustes sostenidos de prioridades basados en resultados']),
+    criterion('followup', '¿Compruebas si las mejoras funcionan?' , ['Realiza alguna revisión de una mejora', 'Repite la revisión aunque sea informal', 'Tiene responsable y frecuencia definida para revisar', 'Compara resultados con objetivos definidos', 'Describe varios ciclos de revisión y ajustes con aprendizaje'])] },
   { id: 'presence', name: 'Presencia y captación', question: 'Si alguien necesita lo que ofreces, ¿cómo te encuentra, cómo te contacta y cómo sabes si ese canal te trae clientes?', criteria: [
     criterion('channels', 'Canales pertinentes', ['Dispone de un canal donde encontrar información del negocio', 'Actualiza ese canal repetidamente', 'Mantiene información clara y contacto funcional con responsable', 'Mide consultas útiles generadas por el canal', 'Ajusta el canal en varios ciclos según resultados']),
     criterion('acquisition', 'Seguimiento de captación', ['Reconoce de dónde llegó alguna consulta', 'Registra repetidamente el origen de consultas', 'Revisa con regularidad el origen y seguimiento de oportunidades', 'Mide conversión o contribución de los canales', 'Describe mejoras repetidas de captación basadas en mediciones'])] },
@@ -24,7 +24,7 @@ export const AXES = [
 export const ACTIONS = [
   ['Elige una mejora y una fecha de revisión', 'Anota el objetivo, quién lo hará y qué cambio esperas observar. Revisa el avance en dos semanas.', 'Una prioridad con responsable y revisión realizada.', 'Puedes hacerlo con tu equipo.'],
   ['Revisa cómo te encuentran y contactan', 'Comprueba que el canal más relevante explica lo que ofreces y permite contactarte. Registra el origen de las próximas consultas.', 'Consultas con origen identificado.', 'Puedes empezar por tu cuenta. Jorkcáceres puede ayudarte con Presencia Digital.'],
-  ['Reúne los pendientes de tus clientes', 'Crea un registro con cliente, estado, responsable y próxima acción. Revísalo cada semana.', 'Pendientes sin próxima acción.', 'Puedes empezar con una hoja. Un CRM o campañas requieren validar el alcance.'],
+  ['Reúne los pendientes de tus clientes', 'Usa tu registro actual, si ya tienes uno, para reunir cliente, estado y próxima acción. Revísalo cada semana.', 'Pendientes sin próxima acción.', 'Aprovecha las herramientas que ya tienes. Cualquier CRM o campaña adicional requiere validar la necesidad y el alcance.'],
   ['Ordena un proceso cotidiano', 'Elige una tarea repetida, escribe sus pasos y evita registrar dos veces la misma información antes de buscar otra herramienta.', 'Errores o repeticiones por semana.', 'Puedes organizarlo internamente. Una Solución Digital requiere primero validar la necesidad.'],
   ['Define un indicador que te ayude a decidir', 'Elige una pregunta de negocio, identifica una fuente confiable y revisa el indicador semanalmente.', 'Revisiones que terminan en una decisión.', 'Puedes empezar con tus registros. Jorkcáceres puede ayudarte con Inteligencia de Negocio.'],
   ['Comprueba cómo continuarías trabajando', 'Identifica quién controla las cuentas y cómo recuperar información. Acuerda un responsable para revisar los accesos y la recuperación.', 'Cuentas con responsable y recuperación comprobada.', 'Puedes organizar la revisión. Una evaluación especializada de seguridad requiere un especialista.'],
@@ -45,7 +45,7 @@ export function scoreCriterion(fact) {
   for (const step of fact.steps.slice(0, 5)) { if (typeof step !== 'string' || !step.trim()) break; score++; }
   return score || null;
 }
-export function evaluate(facts = {}) {
+export function evaluate(facts = {}, context = '') {
   const axes = AXES.map(axis => {
     const criteria = axis.criteria.map(c => ({ id: c.id, name: c.name, score: scoreCriterion(facts[c.id]), ...{ fact: facts[c.id] || { status: 'unknown', evidence: '', steps: [] } } }));
     const applicable = criteria.filter(c => c.fact.status !== 'not_applicable');
@@ -54,6 +54,11 @@ export function evaluate(facts = {}) {
   });
   const candidates = axes.map((a, index) => ({ ...a, index })).filter(a => a.score !== null && a.score < 4)
     .sort((a, b) => ((a.id === 'people' && a.score < 2) ? -1 : (b.id === 'people' && b.score < 2) ? 1 : a.score - b.score));
+  // Explicit business goal guides order; confirmed absence of protection remains first.
+  const goalAxes = /captar|captaci[oó]n|clientes potenciales|nuevos clientes/i.test(context) ? ['presence','customers'] : /pedidos|responder|seguimiento/i.test(context) ? ['customers','operations'] : [];
+  const rank = a => a.id === 'people' && a.criteria.find(c => c.id === 'protection')?.score === 0 ? -2 : goalAxes.includes(a.id) ? -1 : 0;
+  candidates.sort((a,b) => rank(a) - rank(b));
   return { version: VERSION, axes, coverage: axes.filter(a => a.score !== null).length,
     actions: candidates.slice(0, 3).map(a => { const action = a.score >= 3 ? MEASURED_ACTIONS[a.index] : ACTIONS[a.index]; return { axis: a.name, evidence: [...new Set(a.criteria.map(c => c.fact.evidence).filter(Boolean))].join(' '), title: action[0], step: action[1], indicator: action[2], support: ACTIONS[a.index][3] }; }) };
 }
+

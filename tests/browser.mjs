@@ -33,6 +33,8 @@ try {
         if(window.__failNext){window.__failNext=false;return {error:new Error('Fixture offline')}};
         if(b.action==='start') s={phase:'context',facts:{},axis:0,revisions:0,context:'',messages:[{role:'assistant',content:'Cuéntame qué hace tu negocio.'}]};
         if(b.action==='message'){s.messages.push({role:'user',content:b.message});if(s.phase==='context'){s.context=b.message;s.phase='axis'}else{AXES[s.axis].criteria.forEach(c=>s.facts[c.id]=observed());s.axis++;if(s.axis===6)s.phase='review'}s.messages.push({role:'assistant',content:s.phase==='review'?'Revisa lo que entendí.':AXES[s.axis].question})}
+        if(b.action==='prepare')s.editorial={summary:s.context,criteria:{}};
+        if(b.action==='feedback')return {data:{received:true}};
         if(b.action==='finish'){s.phase='done';s.result=evaluate(s.facts);s.contact={company_name:'Negocio de prueba'};saved=[{id:b.id,result:s.result,contact:s.contact,context:s.context,created_at:new Date().toISOString(),model_version:'1.0.0'}]}
         return {data:{state:s}};
       }}}}`;
@@ -42,7 +44,7 @@ try {
     assert.equal(await page.locator('[data-diagnostic-start] input').count(), 5);
     await page.getByLabel('Apellido', { exact: true }).fill('Local');
     await page.getByLabel('Correo electrónico', { exact: true }).fill('fixture@example.invalid');
-    await page.getByLabel('Teléfono con WhatsApp').fill('+573000000000');
+    await page.getByLabel('Número', { exact: true }).fill('3000000000');
     await page.getByLabel('Empresa / negocio').fill('Negocio de prueba');
     await page.screenshot({ path: `output/qa/entry-${mobile ? 'mobile' : 'desktop'}.png`, fullPage: true });
     await page.getByRole('button', { name: 'Comenzar conversación' }).click();
@@ -52,12 +54,13 @@ try {
     await page.evaluate(() => window.__failNext = true);
     await page.getByRole('button', { name: 'Enviar respuesta' }).click();
     await page.locator('[data-diagnostic-error]:not([hidden])').waitFor();
-    assert.equal(await page.locator('textarea').inputValue(), 'Revisamos las ventas cada semana.');
+    assert.equal(await page.locator('#diagnostic-answer').inputValue(), 'Revisamos las ventas cada semana.');
     await page.screenshot({ path: `output/qa/chat-${mobile ? 'mobile' : 'desktop'}.png`, fullPage: true });
     for (let i = 0; i < 6; i++) {
       await page.getByLabel('Tu respuesta', { exact: true }).fill('Revisamos las ventas cada semana.');
       await page.getByRole('button', { name: 'Enviar respuesta' }).click();
     }
+    await page.getByRole('button', { name: 'Preparar explicación para revisar' }).click();
     await page.getByRole('button', { name: 'Confirmar y generar diagnóstico' }).click();
     await page.getByRole('heading', { name: 'Diagnóstico de madurez digital', exact: true }).waitFor();
     assert.equal(await page.locator('.diagnostic-score').count(), 6);
@@ -78,3 +81,4 @@ try {
     await context.close();
   }
 } finally { await browser.close(); server.close(); }
+

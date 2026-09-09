@@ -21,12 +21,16 @@ do $$ begin
     raise exception 'Email normalization / late client association failed';
   end if;
 end $$;
+insert into public.digital_diagnostic_feedback(id,session_id,email,contact,message,phase) select da,da,'qa-access-a@example.invalid','{}'::jsonb,'Comentario ficticio de prueba','axis' from diagnostic_qa_ids;
 select set_config('request.jwt.claim.sub',(select ua::text from diagnostic_qa_ids),true);
 set local role authenticated;
 do $$ begin
   if (select count(*) from public.digital_diagnostics d join diagnostic_qa_ids q on d.id=q.da or d.id=q.db) <> 1 then
     raise exception 'RLS leaked another client or hid own report';
   end if;
+  if exists(select 1 from public.digital_diagnostic_feedback) then raise exception 'Client can read suggestions'; end if;
+  if has_table_privilege(current_user,'public.digital_diagnostic_feedback','insert') then raise exception 'Client can bypass feedback session validation'; end if;
+  if has_column_privilege(current_user,'public.digital_diagnostic_feedback','message','update') then raise exception 'Browser can change feedback message'; end if;
   if has_table_privilege(current_user,'public.digital_diagnostics','insert') then raise exception 'Browser can insert forged report'; end if;
   if has_table_privilege(current_user,'public.digital_diagnostic_sessions','select') then raise exception 'Browser can read session tokens'; end if;
 end $$;
@@ -45,6 +49,9 @@ do $$ begin
   if (select count(*) from public.digital_diagnostics d join diagnostic_qa_ids q on d.id=q.da or d.id=q.db) <> 2 then
     raise exception 'Admin cannot read reports';
   end if;
+  if not exists(select 1 from public.digital_diagnostic_feedback where id=(select da from diagnostic_qa_ids)) then raise exception 'Admin cannot read feedback'; end if;
+  update public.digital_diagnostic_feedback set status='Resuelto' where id=(select da from diagnostic_qa_ids);
+  if not exists(select 1 from public.digital_diagnostic_feedback where id=(select da from diagnostic_qa_ids) and status='Resuelto') then raise exception 'Admin cannot resolve feedback'; end if;
 end $$;
 reset role;
 do $$ begin
@@ -53,3 +60,4 @@ do $$ begin
 end $$;
 rollback;
 select 'PASS: email association, client isolation, revoked access, admin read, write denial, quota; fixtures rolled back' as result;
+

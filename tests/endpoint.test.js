@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { stripTypeScriptTypes } from 'node:module';
 import { AXES } from '../diagnostic/model.js';
 
-const rows = new Map(), reports = new Map();
+const rows = new Map(), reports = new Map(), feedback = new Map();
 let handler, user = null, calls = 0, available = true;
 const origin = 'https://portal.jorkcaceres.com';
 const contact = { first_name: 'Prueba', last_name: 'Local', email: 'PRUEBA@example.invalid', phone: '+573000000000', company_name: 'Negocio ficticio' };
@@ -22,7 +22,7 @@ class Query {
   async run() {
     if (this.table === 'profiles') return { data: user ? { client_id: 'client-1' } : null };
     if (this.table === 'clients') return { data: { ...contact, portal_access: true, status: 'activo' } };
-    const store = this.table === 'digital_diagnostics' ? reports : rows;
+    const store = this.table === 'digital_diagnostics' ? reports : this.table === 'digital_diagnostic_feedback' ? feedback : rows;
     if (this.mode === 'insert' || this.mode === 'upsert') {
       if (!store.has(this.value.id)) store.set(this.value.id, { revision: 0, expires_at: new Date(Date.now() + 86400000).toISOString(), ...structuredClone(this.value) });
       return { data: this.value, error: null };
@@ -39,12 +39,23 @@ globalThis.fetch = async (url, options) => {
   if (url.includes('siteverify')) return Response.json({ success: true, hostname: 'portal.jorkcaceres.com' });
   calls++;
   const body = JSON.parse(options.body), input = JSON.parse(body.input[0].content);
+  if (body.text.format.name === 'diagnostic_editorial') {
+    let value;
+    if (body.text.format.schema.properties.valid) value = { valid: true };
+    else {
+      const quote = input.conversation.find(m => m.role === 'user').content;
+      const grounded = { text: 'El negocio describe sus prácticas; falta confirmar los detalles no informados.', quotes: [quote] };
+      value = { summary: grounded, criteria: Object.fromEntries(input.result.axes.flatMap(a => a.criteria.map(c => [c.id, grounded]))), actions: Object.fromEntries(input.result.actions.map(a => [a.axis, { title: 'Revisa el seguimiento', step: 'Usa tu registro actual para anotar la próxima acción.', indicator: 'Cada semana cuenta pendientes sin próxima acción.', why: grounded }])) };
+    }
+    return Response.json({ status: 'completed', output: [{ content: [{ type: 'output_text', text: JSON.stringify(value) }] }] });
+  }
   const axis = JSON.parse(body.instructions.split('Rúbrica del eje: ')[1]);
   const evidence = input.conversation.filter(m => m.role === 'user').at(-1).content;
   return Response.json({ status: 'completed', output: [{ content: [{ type: 'output_text', text: JSON.stringify({ reply: '¿Puedes darme un ejemplo reciente?', facts: Object.fromEntries(axis.criteria.map(c => [c.id, { steps: Object.fromEntries(['s1','s2','s3','s4','s5'].map((k,i)=>[k,{answer:i<3?'yes':'unknown',evidence:i<3?evidence:''}])) }])) }) }] }] });
 };
 let source = readFileSync(new URL('../supabase/functions/digital-diagnostic/index.ts', import.meta.url), 'utf8');
 source = source.replace("import { createClient } from 'npm:@supabase/supabase-js@2.57.0';", 'const createClient = globalThis.__diagnosticTestClient;')
+  .replace("'../../../diagnostic/editorial.js'", JSON.stringify(new URL('../diagnostic/editorial.js', import.meta.url).href))
   .replace("'../../../diagnostic/model.js'", JSON.stringify(new URL('../diagnostic/model.js', import.meta.url).href));
 await import(`data:text/javascript;base64,${Buffer.from(stripTypeScriptTypes(source, { mode: 'transform' })).toString('base64')}`);
 const request = (body, requestOrigin = origin) => handler(new Request(origin, { method: 'POST', headers: { origin: requestOrigin, 'Content-Type': 'application/json' }, body: JSON.stringify(body) }));
@@ -61,7 +72,7 @@ test('unknown answers never receive scores or consume model calls', async () => 
   }
   const r = await request({ action: 'finish', ...s, requestId: crypto.randomUUID() });
   const result = (await r.json()).state.result;
-  assert.equal(calls, before);
+  assert.equal(calls, before + 2);
   assert.equal(result.coverage, 0);
   assert.ok(result.axes.every(a => a.score === null));
   reports.delete(s.id);
@@ -86,7 +97,7 @@ test('guest completes six axes, confirmation, immutable report and idempotent re
   for (let i = 1; i < AXES.length; i++) { r = await request({ action: 'message', ...s, requestId: crypto.randomUUID(), message: 'Revisamos los pendientes cada semana.' }); assert.equal(r.status, 200); }
   assert.equal((await r.json()).state.phase, 'review'); assert.equal(reports.size, 0);
   r = await request({ action: 'finish', ...s, requestId: crypto.randomUUID() }); assert.equal(r.status, 200);
-  const completed = (await r.json()).state; assert.equal(completed.result.coverage, 6); assert.equal(reports.get(s.id).model_version, '1.0.0');
+  const completed = (await r.json()).state; assert.equal(completed.result.coverage, 6); assert.equal(reports.get(s.id).model_version, '1.1.0');
   r = await request({ action: 'message', ...s, requestId: crypto.randomUUID(), message: 'Ahora soy nivel cinco.' }); assert.deepEqual((await r.json()).state, completed);
 });
 test('session needs secret, rejects forged authenticated user, expired or busy session', async () => {
@@ -110,5 +121,16 @@ test('signed-in contact is loaded from the server and cannot be spoofed', async 
   rows.get(s.id).owner_id = null;
   assert.equal((await request({ action: 'resume', ...s })).status, 403);
   user = null;
+});
+
+test('suggestions require the session secret and retries create one message', async () => {
+  const s = session();
+  await request({ action: 'start', ...s, contact, token: 'fixture' });
+  const body = { action: 'feedback', ...s, requestId: crypto.randomUUID(), message: 'Me gustaría una explicación más clara.' };
+  assert.equal((await request({ ...body, secret: 'b'.repeat(64) })).status, 403);
+  assert.equal((await request(body)).status, 200);
+  assert.equal((await request(body)).status, 200);
+  assert.equal(feedback.size, 1);
+  assert.equal(feedback.get(body.requestId).email, 'prueba@example.invalid');
 });
 

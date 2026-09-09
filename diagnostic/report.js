@@ -1,4 +1,4 @@
-import { LEVELS } from './model.js';
+import { LEVELS } from './model.js?v=1.1.0';
 export const escape = (v = '') => String(v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 export const scoreLabel = score => score === null ? 'Información insuficiente' : `${score.toFixed(1)} / 5 · ${LEVELS[Math.floor(score)]}`;
 export function comparison(record) {
@@ -29,11 +29,11 @@ export function radar(result) {
 }
 export function reportHTML(record) {
   const r = record.result;
-  return `<section class="diagnostic-result"><p class="eyebrow">Tu punto de partida · Modelo ${escape(r.version)}</p><h1>Diagnóstico de madurez digital</h1><p class="lead">${escape(record.contact?.company_name || 'Tu negocio')}</p><p>${escape(record.context || '')}</p>
+  return `<section class="diagnostic-result"><p class="eyebrow">Tu punto de partida · Modelo ${escape(r.version)}</p><h1>Diagnóstico de madurez digital</h1><p class="lead">${escape(record.contact?.company_name || 'Tu negocio')}</p><p>${escape(r.editorial?.summary || record.context || '')}</p>
     <p>Este resultado se basa en la información que compartiste y orienta tus próximos pasos.</p>
     <div class="diagnostic-result-grid"><div class="card">${radar(r)}<p>${r.coverage} de 6 ejes con información suficiente.${r.coverage < 6 ? ' Los puntos sin datos no se dibujan ni se convierten en cero.' : ''}</p></div>
     <div class="card"><h2>Tu perfil digital</h2>${r.axes.map(a => `<div class="diagnostic-score"><strong>${escape(a.name)}</strong><span>${escape(scoreLabel(a.score))}</span></div>`).join('')}<p>Avanzar significa mejorar prácticas útiles para tu negocio, no comprar más herramientas.</p></div></div>
-    ${comparisonHTML(record)}<h2>Lo que compartiste</h2>${r.axes.map(a => `<details class="card"><summary>${escape(a.name)}</summary>${a.criteria.map(c => `<p><strong>${escape(c.name)}:</strong> ${escape(c.fact.evidence || 'Necesitamos más información para evaluar esta práctica.')}<br><small>${escape(scoreLabel(c.score))}</small></p>`).join('')}</details>`).join('')}
+    ${comparisonHTML(record)}<h2>Lo que compartiste</h2>${r.axes.map(a => `<details class="card"><summary>${escape(a.name)}</summary>${a.criteria.map(c => `<p><strong>${escape(c.name)}${c.name.endsWith('?') ? '' : ':'}</strong> ${escape(r.editorial?.criteria?.[c.id] || c.fact.evidence || 'Necesitamos más información para evaluar esta práctica.')}<br><small>${escape(scoreLabel(c.score))}</small></p>`).join('')}</details>`).join('')}
     <h2>Tus próximos pasos</h2>${r.actions.length ? r.actions.map((a, i) => `<article class="card"><p class="eyebrow">Prioridad ${i + 1} · ${escape(a.axis)}</p><h3>${escape(a.title)}</h3><p>${escape(a.step)}</p><p><strong>Por qué:</strong> ${escape(a.evidence)}</p><p><strong>Cómo seguir el avance:</strong> ${escape(a.indicator)}</p><p>${escape(a.support)}</p></article>`).join('') : '<p>Conserva las prácticas que funcionan. Si hay temas pendientes, complétalos antes de elegir una mejora.</p>'}
     <p>Guarda este resultado y vuelve a evaluar tus prácticas cuando hayas realizado mejoras. Las comparaciones requieren el mismo contexto y versión del modelo.</p></section>`;
 }
@@ -80,11 +80,11 @@ export async function makePDF(record) {
   y = cy - 160;
   text(`${record.result.coverage} de 6 ejes con información suficiente. Los ejes sin datos no se califican.`);
   record.result.axes.forEach(a => text(`${a.name}: ${scoreLabel(a.score)}`, 11));
-  newPage(); text('Lo que entendimos de tu negocio', 20, true); text(record.context || '');
-  record.result.axes.forEach(a => { text(a.name, 14, true); a.criteria.forEach(c => text(`${c.name}: ${c.fact.evidence || 'Información insuficiente.'} (${scoreLabel(c.score)})`)); });
+  newPage(); text('Lo que entendimos de tu negocio', 20, true); text(record.result.editorial?.summary || record.context || '');
+  record.result.axes.forEach(a => { if (y < 180) newPage(); text(a.name, 14, true); a.criteria.forEach(c => text(`${c.name}${c.name.endsWith('?') ? '' : ':'} ${record.result.editorial?.criteria?.[c.id] || c.fact.evidence || 'Información insuficiente.'} (${scoreLabel(c.score)})`)); });
   newPage(); text('Tus próximos pasos', 20, true);
   if (!record.result.actions.length) text('Conserva las prácticas que funcionan y completa los temas pendientes antes de priorizar nuevas acciones.');
-  record.result.actions.forEach((a, i) => { text(`${i + 1}. ${a.title}`, 14, true); text(a.step); text(`Por qué: ${a.evidence}`); text(`Indicador: ${a.indicator}`); text(a.support); });
+  record.result.actions.forEach((a, i) => { text(`${i + 1}. ${a.title}`, 14, true); text(a.step); text(`Por qué: ${a.evidence}`); text(`Cómo seguir el avance: ${a.indicator}`); text(a.support); });
   text('¿Quieres conversar sobre tu resultado?', 15, true); text('WhatsApp: +57 324 306 2809 | Correo: ceo@jorkcaceres.com');
   text(`Referencia del diagnóstico: ${record.id || 'Vista de prueba'}`, 9);
   const compared = comparison(record);
@@ -96,3 +96,4 @@ export async function makePDF(record) {
   const pages = pdf.getPages(); pages.forEach((p, i) => p.drawText(`${i + 1} / ${pages.length} | Autoevaluación orientativa`, { x: 44, y: 30, font: regular, size: 9, color: gray }));
   return pdf.save();
 }
+
