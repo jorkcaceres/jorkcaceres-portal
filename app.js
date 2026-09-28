@@ -65,7 +65,7 @@ function officialChannels() {
       <a class="channel-card" href="mailto:ceo@jorkcaceres.com"><span>Correo electrónico</span><strong>ceo@jorkcaceres.com</strong></a>
       <a class="channel-card" href="${helpUrl}" target="_blank" rel="noreferrer"><span>WhatsApp</span><strong>+57 324 306 2809</strong></a>
       <a class="channel-card" href="https://jorkcaceres.com" target="_blank" rel="noreferrer"><span>Sitio web</span><strong>jorkcaceres.com</strong></a>
-      <a class="channel-card channel-card-update" href="https://jorkcaceres.com/actualizacion-de-datos/" target="_blank" rel="noreferrer"><span>Actualización de datos</span><strong>Actualiza tus datos</strong><small>Recibirás un correo de comprobación para validar que la información sea correcta.</small></a>
+      <a class="channel-card" href="https://jorkcaceres.com/actualizacion-de-datos/" target="_blank" rel="noreferrer"><span>Información de contacto</span><strong>Actualiza tus datos</strong><small>Recibirás un correo de comprobación para validar que la información sea correcta.</small></a>
     </div>
   </section>`;
 }
