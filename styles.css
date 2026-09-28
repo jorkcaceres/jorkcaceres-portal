@@ -79,6 +79,8 @@ h3 { font-size: 1.22rem; margin-bottom: 6px; }
 .card { display: flex; flex-direction: column; padding: 26px; min-height: 220px; border: 1px solid var(--line); border-radius: 20px; background: white; }
 .card p { color: var(--muted); line-height: 1.4; }
 .card .button { align-self: flex-start; margin-top: auto; }
+.card-button-group { display: flex; flex-wrap: wrap; gap: 10px; margin-top: auto; }
+.card .card-button-group .button { margin-top: 0; }
 .card-icon { display: grid; place-items: center; width: 48px; height: 48px; margin-bottom: auto; border-radius: 15px; background: var(--mist); color: var(--navy); }
 .card-icon svg { width: 25px; height: 25px; }
 .meta { color: var(--muted); font-size: .92rem; }
