@@ -28,7 +28,7 @@ export function createDiagnostic(deps) {
     app.querySelector('[data-diagnostic-message]')?.addEventListener('submit', send);
     app.querySelector('[data-diagnostic-finish]')?.addEventListener('click', () => mutate('finish'));
     app.querySelectorAll('[data-diagnostic-revise]').forEach(b => b.addEventListener('click', () => mutate('revise', { axis: Number(b.dataset.diagnosticRevise) })));
-    app.querySelector('[data-diagnostic-new]')?.addEventListener('click', () => { current = null; credentials = null; pending = null; save(); view(); });
+    app.querySelector('[data-diagnostic-new]')?.addEventListener('click', newDiagnostic);
     app.querySelector('[data-diagnostic-pdf]')?.addEventListener('click', download);
     app.querySelector('[data-diagnostic-compare]')?.addEventListener('click', compare);
     app.querySelector('[data-diagnostic-resume]')?.addEventListener('click', view);
@@ -151,6 +151,7 @@ export function createDiagnostic(deps) {
     app.querySelectorAll('[data-suggestion-page]').forEach(b => b.onclick = () => { suggestionsPage += Number(b.dataset.suggestionPage); suggestions(); });
     app.querySelectorAll('[data-feedback-state]').forEach(select => select.onchange = async () => { select.disabled = true; const { error: failure } = await supabase.from('digital_diagnostic_feedback').update({ status: select.value }).eq('id', select.dataset.feedbackState); if (failure) error('No se pudo guardar el estado. Recarga para comprobarlo.'); select.disabled = false; });
   }
+  function newDiagnostic() { current = null; credentials = null; pending = null; save(); view(); }
   function clear() { suggestionsPage = 1; historyAdmin = null; feedbackDraft = ''; feedbackId = null; current = null; credentials = null; pending = null; storageKey = ''; historyPage = 1; }
-  return { view, history, suggestions, clear };
+  return { view, newDiagnostic, history, suggestions, clear };
 }
