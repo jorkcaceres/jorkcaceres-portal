@@ -1,4 +1,4 @@
-export const VERSION = '1.1.0';
+export const VERSION = '1.2.0';
 export const LEVELS = ['No establecido', 'Inicial', 'En desarrollo', 'Gestionado', 'Medido', 'En mejora continua'];
 const criterion = (id, name, steps) => ({ id, name, steps });
 export const AXES = [
@@ -21,6 +21,23 @@ export const AXES = [
     criterion('skills', 'Uso y continuidad', ['Una persona sabe usar las herramientas principales', 'Se comparte o refuerza ese conocimiento repetidamente', 'Hay instrucciones y responsables o un plan de continuidad si trabaja solo', 'Se comprueba que pueden trabajar siguiendo esas instrucciones', 'Se mejoran instrucciones y habilidades según comprobaciones repetidas']),
     criterion('protection', 'Accesos y recuperación', ['Existe alguna práctica de protección de cuentas o información', 'Repite respaldos o revisiones de accesos', 'Controla accesos, protege cuentas y tiene recuperación definida', 'Comprueba recuperación y revisa accesos periódicamente', 'Mejora protección y recuperación a partir de pruebas repetidas'])] },
 ];
+
+// Stable identifiers make each answer traceable to its axis and practice.
+export const QUESTIONS = [
+  ['direction-priorities', 'direction', 'priorities', '¿Qué mejora quieres lograr primero en tu negocio y por qué es importante ahora?'],
+  ['direction-followup', 'direction', 'followup', '¿Cómo revisas si esa mejora está funcionando?'],
+  ['presence-channels', 'presence', 'channels', '¿Por cuáles canales te encuentran y contactan hoy?'],
+  ['presence-acquisition', 'presence', 'acquisition', '¿Cómo sabes qué canal te trae oportunidades o clientes?'],
+  ['customers-pipeline', 'customers', 'pipeline', '¿Dónde registras los pendientes y la próxima acción de cada oportunidad?'],
+  ['customers-relationship', 'customers', 'relationship', '¿Cómo sabes si un cliente quedó satisfecho después de recibir tu servicio?'],
+  ['operations-records', 'operations', 'records', '¿Dónde registras ventas, pagos o entregas para poder consultarlos después?'],
+  ['operations-workflow', 'operations', 'workflow', '¿Qué tarea cotidiana se repite y dónde aparecen errores o trabajo duplicado?'],
+  ['data-quality', 'data', 'quality', '¿De dónde sale la información que usas para conocer cómo va tu negocio?'],
+  ['data-decisions', 'data', 'decisions', '¿Qué indicador revisaste recientemente y qué decisión tomaste con él?'],
+  ['people-skills', 'people', 'skills', '¿Cómo aprendes o compartes el uso de las herramientas que necesitas para trabajar?'],
+  ['people-protection', 'people', 'protection', 'Si pierdes acceso a una cuenta o falta quien más sabe, ¿cómo recuperarías la información y continuarías trabajando?'],
+].map(([id, axis_id, practice_id, question]) => ({ id, axis_id, practice_id, question }));
+
 export const ACTIONS = [
   ['Elige una mejora y una fecha de revisión', 'Anota el objetivo, quién lo hará y qué cambio esperas observar. Revisa el avance en dos semanas.', 'Una prioridad con responsable y revisión realizada.', 'Puedes hacerlo con tu equipo.'],
   ['Revisa cómo te encuentran y contactan', 'Comprueba que el canal más relevante explica lo que ofreces y permite contactarte. Registra el origen de las próximas consultas.', 'Consultas con origen identificado.', 'Puedes empezar por tu cuenta. Jorkcáceres puede ayudarte con Presencia Digital.'],
@@ -53,11 +70,16 @@ export function evaluate(facts = {}, context = '') {
     return { id: axis.id, name: axis.name, score, criteria };
   });
   const candidates = axes.map((a, index) => ({ ...a, index })).filter(a => a.score !== null && a.score < 4)
-    .sort((a, b) => ((a.id === 'people' && a.score < 2) ? -1 : (b.id === 'people' && b.score < 2) ? 1 : a.score - b.score));
-  // Explicit business goal guides order; confirmed absence of protection remains first.
-  const goalAxes = /captar|captaci[oó]n|clientes potenciales|nuevos clientes/i.test(context) ? ['presence','customers'] : /pedidos|responder|seguimiento/i.test(context) ? ['customers','operations'] : [];
-  const rank = a => a.id === 'people' && a.criteria.find(c => c.id === 'protection')?.score === 0 ? -2 : goalAxes.includes(a.id) ? -1 : 0;
-  candidates.sort((a,b) => rank(a) - rank(b));
+    .sort((a, b) => a.score - b.score);
+  // The stated business objective guides the order; no axis is promoted by a hidden rule.
+  const goalAxes = /modelo comercial|oferta|ventas|captar|captaci[oó]n|clientes potenciales|nuevos clientes/i.test(context)
+    ? ['direction', 'presence', 'customers']
+    : /pedidos|responder|seguimiento/i.test(context) ? ['customers', 'operations'] : [];
+  const rank = a => {
+    const position = goalAxes.indexOf(a.id);
+    return position === -1 ? 10 : position;
+  };
+  candidates.sort((a, b) => rank(a) - rank(b) || a.score - b.score);
   return { version: VERSION, axes, coverage: axes.filter(a => a.score !== null).length,
     actions: candidates.slice(0, 3).map(a => { const action = a.score >= 3 ? MEASURED_ACTIONS[a.index] : ACTIONS[a.index]; return { axis: a.name, evidence: [...new Set(a.criteria.map(c => c.fact.evidence).filter(Boolean))].join(' '), title: action[0], step: action[1], indicator: action[2], support: ACTIONS[a.index][3] }; }) };
 }

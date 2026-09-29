@@ -1,6 +1,6 @@
 import { countryOptions, normalizePhone } from './phone.js';
-import { AXES, VERSION } from './model.js?v=1.1.0';
-import { escape as esc, reportHTML, makePDF } from './report.js?v=1.1.0';
+import { AXES, VERSION } from './model.js?v=1.2.0';
+import { escape as esc, reportHTML, makePDF } from './report.js?v=1.2.0';
 
 export function createDiagnostic(deps) {
   const { app, supabase, state, header, publicHeader, footer, mountTurnstile, captchaToken, resetTurnstile, helpUrl, adminNav, adminModuleShell, arrowIcon } = deps;
@@ -70,7 +70,7 @@ export function createDiagnostic(deps) {
     const ownerKey = key(), route = location.hash;
     const signature = JSON.stringify({ action, ...extra });
     if (!pending || pending.signature !== signature) pending = { signature, requestId: crypto.randomUUID() };
-    const status = app.querySelector('[data-diagnostic-status]'); if (status) status.textContent = action === 'prepare' || action === 'finish' ? 'Estoy organizando y comprobando tu informe. Puede tomar un momento…' : 'Estoy leyendo tu respuesta…';
+    const status = app.querySelector('[data-diagnostic-status]'); if (status) status.textContent = action === 'prepare' || action === 'finish' ? 'Estoy organizando y comprobando tu diagnóstico. Puede tomar unos segundos…' : 'Estoy leyendo tu respuesta y preparando la siguiente pregunta…';
     app.querySelector('.diagnostic-chat')?.setAttribute('aria-busy', 'true');
     try { const data = await invoke({ action, ...credentials, requestId: pending.requestId, ...extra }); if (ownerKey !== key()) return; current = data.state; pending = null; if (route === location.hash) view(); }
     catch (err) { error(err.message); }
@@ -112,10 +112,9 @@ export function createDiagnostic(deps) {
     }
     const covered = AXES.filter(a => a.criteria.every(c => current.facts[c.id])).length;
     shell(`<div class="${current.phase === 'review' ? '' : 'diagnostic-conversation'}"><p class="eyebrow">Diagnóstico digital · Conversación</p><h1>Conversemos sobre tu negocio.</h1>${current.phase !== 'review' ? `<div class="diagnostic-chat-heading"><span class="diagnostic-avatar" aria-hidden="true">J</span><div><strong>${esc(current.phase === 'context' ? 'Primero, conozcamos tu negocio' : AXES[current.axis]?.name || 'Tu negocio')}</strong><small>Una pregunta a la vez · A tu ritmo</small></div></div>` : ''}<p>${covered} de 6 Ejes conversados · Puedes decir «no sé» cuando lo necesites.</p><progress max="6" value="${covered}" aria-label="Ejes conversados"></progress><div class="diagnostic-chat" role="log" aria-label="Conversación">${current.messages.map(m => `<article class="diagnostic-message ${m.role === 'user' ? 'from-user' : ''}"><strong>${m.role === 'user' ? 'Tú' : 'Jorkcáceres'}</strong><p>${esc(m.content)}</p></article>`).join('')}</div>
-      ${current.phase === 'review' ? `<section class="diagnostic-review"><h2>¿Esto refleja tu negocio?</h2><p>${esc(current.editorial?.summary || current.context)}</p>${AXES.map((a, index) => `<article class="card"><h3>${esc(a.name)}</h3>${a.criteria.map(c => `<p><strong>${esc(c.name)}${c.name.endsWith('?') ? '' : ':'}</strong> ${esc(current.editorial?.criteria?.[c.id] || current.facts[c.id]?.evidence || 'Información insuficiente.')}</p>`).join('')}${current.revisions < 2 ? `<button class="text-link" data-diagnostic-revise="${index}">Corregir este tema</button>` : ''}</article>`).join('')}${current.editorial ? '<button class="button primary" data-diagnostic-finish>Confirmar y generar diagnóstico</button>' : '<button class="button primary" data-diagnostic-prepare>Preparar explicación para revisar</button>'}</section>` : '<form data-diagnostic-message class="diagnostic-compose"><label class="field" for="diagnostic-answer">Tu respuesta<textarea id="diagnostic-answer" name="message" rows="3" maxlength="2000" required></textarea></label><button class="button primary" type="submit">Enviar respuesta</button></form>'}
-      <p data-diagnostic-status role="status"></p><p data-diagnostic-error hidden role="alert"></p></div>`);
+      ${current.phase === 'review' ? `<section class="diagnostic-review"><h2>Revisión de tus respuestas</h2><p>${covered} de 6 ejes cubiertos. Tus respuestas contienen información suficiente para generar el diagnóstico.</p><p>${esc(current.editorial?.summary || current.context)}</p><details class="card"><summary>Revisar mis respuestas</summary>${current.messages.filter(message => message.role === 'user').map(message => `<p>${esc(message.content)}</p>`).join('')}</details><button class="button primary" data-diagnostic-finish>Generar mi diagnóstico</button></section>`  : '<form data-diagnostic-message class="diagnostic-compose"><label class="field" for="diagnostic-answer">Tu respuesta<textarea id="diagnostic-answer" name="message" rows="3" maxlength="2000" required></textarea></label><button class="button primary" type="submit">Enviar respuesta</button></form>'}
+      <p class="diagnostic-processing" data-diagnostic-status role="status"></p><p data-diagnostic-error hidden role="alert"></p></div>`);
     bind(); const chat = app.querySelector('.diagnostic-chat'); chat.scrollTop = chat.scrollHeight;
-    if (!wasConversation && current.phase !== 'review') window.scrollTo(0, 0);
     app.querySelector('#diagnostic-answer')?.focus({ preventScroll: true });
   }
   function pager(page, count, attribute, label) {

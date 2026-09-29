@@ -140,7 +140,7 @@ Deno.serve(async request => {
         const { data, error } = await client.rpc('diagnostic_consume_quota', { bucket: String(bucket), max_uses: Number(max) });
         if (error || data !== true) throw new UserError('Alcanzamos el límite de diagnósticos por hoy. Inténtalo mañana.', 429);
       }
-      const state = { version: VERSION, requiresAuth: Boolean(owner), phase: 'context', axis: 0, followup: false, turns: 0, revisions: 0, facts: {}, context: '', axisMessages: [], messages: [{ role: 'assistant', content: 'Cuéntame qué hace tu negocio, a quién atiende, cuántas personas participan y qué te gustaría mejorar primero.' }], lastRequest: null };
+      const state = { version: VERSION, requiresAuth: Boolean(owner), phase: 'context', axis: 0, followup: false, turns: 0, revisions: 0, facts: {}, answers: [], context: '', axisMessages: [], messages: [{ role: 'assistant', content: 'Cuéntame qué hace tu negocio, a quién atiende, cuántas personas participan y qué te gustaría mejorar primero.' }], lastRequest: null };
       const { error } = await client.from('digital_diagnostic_sessions').insert({ id: b.id, secret_hash: secretHash, owner_id: owner, email: normalized.email, contact: normalized, state });
       if (error) throw new UserError('No pudimos iniciar el diagnóstico. Inténtalo nuevamente.', 500);
       return json({ id: b.id, state });
@@ -208,6 +208,10 @@ Deno.serve(async request => {
         }
         const parsed = await interpret(AXES[s.axis], s.messages, s.context);
         Object.assign(s.facts, parsed.facts);
+        const axis = AXES[s.axis];
+        const response = s.axisMessages.filter((entry: { role: string }) => entry.role === 'user').map((entry: { content: string }) => entry.content).join('\n');
+        const mappedAnswers = axis.criteria.map((criterion: { id: string }) => ({ question_id: `${axis.id}-${criterion.id}`, axis_id: axis.id, practice_id: criterion.id, response }));
+        s.answers = [...(s.answers || []).filter((answer: { axis_id: string }) => answer.axis_id !== axis.id), ...mappedAnswers];
         const provisional = evaluate(s.facts).axes[s.axis];
         // One clarification maximum per axis; never force unknown answers to zero.
         if (!s.followup && provisional.criteria.some(c => c.score === null || c.score < 3) && !/^(no s[eé]|no lo s[eé]|prefiero omitir|omitir)[.! ]*$/i.test(message)) {

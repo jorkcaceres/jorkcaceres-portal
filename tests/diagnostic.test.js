@@ -51,3 +51,10 @@ test('PDF generator handles Spanish, long words and missing scores', async () =>
   const bytes = await makePDF({ contact: { company_name: 'Empresa de prueba áéíóú ñ 🚀' }, context: 'x'.repeat(1600), result: evaluate() });
   assert.equal(new TextDecoder().decode(bytes.slice(0, 5)), '%PDF-');
 });
+
+test('commercial goal comes before a hidden continuity rule', () => {
+  const facts = Object.fromEntries(AXES.flatMap(axis => axis.criteria.map(c => [c.id, observed(1)])));
+  const result = evaluate(facts, 'Quiero mejorar mi modelo comercial y atraer nuevos clientes.');
+  assert.equal(result.actions[0].axis, 'Dirección y prioridades');
+  assert.equal(result.actions[1].axis, 'Presencia y captación');
+});
