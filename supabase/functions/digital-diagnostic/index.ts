@@ -1,5 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.57.0';
-import { AXES, QUESTIONS, VERSION, evaluate } from '../../../diagnostic/model.js';
+import { AXES, QUESTIONS, VERSION, evaluate, scoreCriterion } from '../../../diagnostic/model.js';
 import { editorialSchema, validateEditorial } from '../../../diagnostic/editorial.js';
 
 const origin = Deno.env.get('DIAGNOSTIC_ORIGIN') || 'https://portal.jorkcaceres.com';
@@ -10,6 +10,8 @@ const hash = async (s: string) => [...new Uint8Array(await crypto.subtle.digest(
 const clean = (v: unknown, max = 1000) => typeof v === 'string' ? v.trim().slice(0, max) : '';
 const uuid = (v: unknown) => typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
 class UserError extends Error { constructor(message: string, public status = 400, public diagnosticCode = 'request_failed') { super(message); } }
+const unresolvedCriteria = (facts: Record<string, unknown> = {}) => AXES.flatMap(axis => axis.criteria.map(criterion => ({ axis, criterion })))
+  .filter(({ criterion }) => scoreCriterion(facts[criterion.id]) === null);
 async function interpret(axis: typeof AXES[number], transcript: { role: string; content: string }[], context: string) {
   if (/^(no s[eé]|no lo s[eé]|prefiero omitir|omitir)[.! ]*$/i.test(transcript.at(-1)?.content.trim() || '')) {
     return { facts: Object.fromEntries(axis.criteria.map(c => [c.id, { status: 'unknown', evidence: '', steps: [], observations: [] }])), reply: '' };
@@ -140,7 +142,7 @@ Deno.serve(async request => {
         const { data, error } = await client.rpc('diagnostic_consume_quota', { bucket: String(bucket), max_uses: Number(max) });
         if (error || data !== true) throw new UserError('Alcanzamos el límite de diagnósticos por hoy. Inténtalo mañana.', 429);
       }
-      const state = { version: VERSION, requiresAuth: Boolean(owner), phase: 'context', axis: 0, question: 0, turns: 0, revisions: 0, facts: {}, answers: [], context: '', messages: [{ role: 'assistant', content: 'Cuéntame qué hace tu negocio, a quién atiende, cuántas personas participan y qué te gustaría mejorar primero.' }], lastRequest: null };
+      const state = { version: VERSION, requiresAuth: Boolean(owner), phase: 'context', axis: 0, question: 0, turns: 0, revisions: 0, followup: null, facts: {}, answers: [], context: '', messages: [{ role: 'assistant', content: 'Cuéntame qué hace tu negocio, a quién atiende, cuántas personas participan y qué te gustaría mejorar primero.' }], lastRequest: null };
       const { error } = await client.from('digital_diagnostic_sessions').insert({ id: b.id, secret_hash: secretHash, owner_id: owner, email: normalized.email, contact: normalized, state });
       if (error) throw new UserError('No pudimos iniciar el diagnóstico. Inténtalo nuevamente.', 500);
       return json({ id: b.id, state });
@@ -189,6 +191,20 @@ Deno.serve(async request => {
       s.phase = 'done'; s.result = result; s.contact = row.contact; s.completedAt = report.created_at;
     } else if (b.action === 'prepare' && s.phase === 'review') {
       if (!s.editorial) await prepareEditorial(s, client, row.id);
+    } else if (b.action === 'clarify' && s.phase === 'review') {
+      const pending = unresolvedCriteria(s.facts);
+      const axisId = clean(b.axisId, 60), practiceId = clean(b.practiceId, 60);
+      const target = pending.find(item => item.axis.id === axisId && item.criterion.id === practiceId);
+      if (!target) throw new UserError('Esta información ya está lista para generar el diagnóstico.');
+      s.followup = {
+        id: `clarify-${target.axis.id}-${target.criterion.id}`,
+        axis_id: target.axis.id,
+        practice_ids: [target.criterion.id],
+        question: `Para completar ${target.axis.name}, cuéntame con un ejemplo cómo manejas: ${target.criterion.name} Si todavía no lo haces, puedes decirlo.`,
+      };
+      s.phase = 'question'; s.axis = AXES.findIndex(axis => axis.id === target.axis.id);
+      delete s.editorial;
+      s.messages.push({ role: 'assistant', content: s.followup.question });
     } else if (b.action === 'revise' && s.phase === 'review') {
       throw new UserError('Esta versión genera el diagnóstico a partir de tus respuestas confirmadas. Inicia uno nuevo si deseas actualizar la información.');
     } else if (b.action === 'message' && ['context', 'question'].includes(s.phase)) {
@@ -199,27 +215,32 @@ Deno.serve(async request => {
         s.context = message; s.phase = 'question'; s.question = 0; s.axis = 0;
         s.messages.push({ role: 'assistant', content: QUESTIONS[0].question });
       } else {
-        const question = QUESTIONS[s.question];
+        const question = s.followup || QUESTIONS[s.question];
         if (!question) throw new UserError('Esta conversación ya está lista para generar el diagnóstico.');
         for (const [bucket, max] of [[`calls:${row.id}`, 32], ['calls:global', 500]]) {
           const { data, error } = await client.rpc('diagnostic_consume_quota', { bucket: String(bucket), max_uses: Number(max) });
           if (error || data !== true) throw new UserError('Alcanzamos el límite de procesamiento. Retoma el diagnóstico más adelante.', 429);
         }
         const axis = AXES.find(item => item.id === question.axis_id);
-        const criterion = axis?.criteria.find(item => item.id === question.practice_id);
-        if (!axis || !criterion) throw new UserError('No pudimos interpretar esta pregunta. Inicia un nuevo diagnóstico.', 500);
-        const parsed = await interpret({ ...axis, question: question.question, criteria: [criterion] }, s.messages, s.context);
+        const criteria = axis?.criteria.filter(item => question.practice_ids?.includes(item.id));
+        if (!axis || !criteria?.length) throw new UserError('No pudimos interpretar esta pregunta. Inicia un nuevo diagnóstico.', 500);
+        const parsed = await interpret({ ...axis, question: question.question, criteria }, s.messages, s.context);
         Object.assign(s.facts, parsed.facts);
         s.answers = [...(s.answers || []).filter((answer: { question_id: string }) => answer.question_id !== question.id), {
-          question_id: question.id, axis_id: question.axis_id, practice_id: question.practice_id, response: message
+          question_id: question.id, axis_id: question.axis_id, practice_ids: question.practice_ids, response: message
         }];
-        s.question++;
-        s.axis = Math.min(5, Math.floor(s.question / 2));
-        if (s.question >= QUESTIONS.length) {
-          s.phase = 'review';
-          s.messages.push({ role: 'assistant', content: 'Revisa tus respuestas antes de generar el diagnóstico.' });
+        if (s.followup) {
+          s.followup = null; s.phase = 'review';
+          s.messages.push({ role: 'assistant', content: 'Revisa la información antes de generar el diagnóstico.' });
         } else {
-          s.messages.push({ role: 'assistant', content: QUESTIONS[s.question].question });
+          s.question++;
+          s.axis = Math.min(AXES.length - 1, s.question);
+          if (s.question >= QUESTIONS.length) {
+            s.phase = 'review';
+            s.messages.push({ role: 'assistant', content: 'Revisa tus respuestas antes de generar el diagnóstico.' });
+          } else {
+            s.messages.push({ role: 'assistant', content: QUESTIONS[s.question].question });
+          }
         }
       }
     } else throw new UserError('Esta acción no corresponde al paso actual.');

@@ -1,4 +1,4 @@
-export const VERSION = '1.2.2';
+export const VERSION = '1.2.3';
 export const LEVELS = ['No establecido', 'Inicial', 'En desarrollo', 'Gestionado', 'Medido', 'En mejora continua'];
 const criterion = (id, name, steps) => ({ id, name, steps });
 export const AXES = [
@@ -22,21 +22,13 @@ export const AXES = [
     criterion('protection', 'Accesos y recuperación', ['Existe alguna práctica de protección de cuentas o información', 'Repite respaldos o revisiones de accesos', 'Controla accesos, protege cuentas y tiene recuperación definida', 'Comprueba recuperación y revisa accesos periódicamente', 'Mejora protección y recuperación a partir de pruebas repetidas'])] },
 ];
 
-// Stable identifiers make each answer traceable to its axis and practice.
-export const QUESTIONS = [
-  ['direction-priorities', 'direction', 'priorities', '¿Qué mejora quieres lograr primero en tu negocio y por qué es importante ahora?'],
-  ['direction-followup', 'direction', 'followup', '¿Cómo revisas si esa mejora está funcionando?'],
-  ['presence-channels', 'presence', 'channels', '¿Por cuáles canales te encuentran y contactan hoy?'],
-  ['presence-acquisition', 'presence', 'acquisition', '¿Cómo sabes qué canal te trae oportunidades o clientes?'],
-  ['customers-pipeline', 'customers', 'pipeline', '¿Dónde registras los pendientes y la próxima acción de cada oportunidad?'],
-  ['customers-relationship', 'customers', 'relationship', '¿Cómo sabes si un cliente quedó satisfecho después de recibir tu servicio?'],
-  ['operations-records', 'operations', 'records', '¿Dónde registras ventas, pagos o entregas para poder consultarlos después?'],
-  ['operations-workflow', 'operations', 'workflow', '¿Qué tarea cotidiana se repite y dónde aparecen errores o trabajo duplicado?'],
-  ['data-quality', 'data', 'quality', '¿De dónde sale la información que usas para conocer cómo va tu negocio?'],
-  ['data-decisions', 'data', 'decisions', '¿Qué indicador revisaste recientemente y qué decisión tomaste con él?'],
-  ['people-skills', 'people', 'skills', '¿Cómo aprendes o compartes el uso de las herramientas que necesitas para trabajar?'],
-  ['people-protection', 'people', 'protection', 'Si pierdes acceso a una cuenta o falta quien más sabe, ¿cómo recuperarías la información y continuarías trabajando?'],
-].map(([id, axis_id, practice_id, question]) => ({ id, axis_id, practice_id, question }));
+// Each initial question covers one whole axis. The review asks only for a clarification when evidence is missing.
+export const QUESTIONS = AXES.map(axis => ({
+  id: axis.id,
+  axis_id: axis.id,
+  practice_ids: axis.criteria.map(criterion => criterion.id),
+  question: axis.question,
+}));
 
 export const ACTIONS = [
   ['Elige una mejora y una fecha de revisión', 'Anota el objetivo, quién lo hará y qué cambio esperas observar. Revisa el avance en dos semanas.', 'Una prioridad con responsable y revisión realizada.', 'Puedes hacerlo con tu equipo.'],

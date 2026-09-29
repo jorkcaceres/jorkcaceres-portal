@@ -1,6 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.0';
 
-import { createDiagnostic } from './diagnostic/ui.js?v=1.2.14';
+import { createDiagnostic } from './diagnostic/ui.js?v=1.2.15';
 
 const app = document.querySelector('#app');
 const logo = 'assets/jorkcaceres-horizontal-negro.png';

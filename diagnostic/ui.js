@@ -1,5 +1,5 @@
 import { countryOptions, normalizePhone } from './phone.js';
-import { AXES, QUESTIONS, VERSION } from './model.js?v=1.2.2';
+import { AXES, QUESTIONS, VERSION, scoreCriterion } from './model.js?v=1.2.3';
 import { escape as esc, reportHTML, makePDF } from './report.js?v=1.2.3';
 
 export function createDiagnostic(deps) {
@@ -27,6 +27,7 @@ export function createDiagnostic(deps) {
     app.querySelector('[data-diagnostic-start]')?.addEventListener('submit', start);
     app.querySelector('[data-diagnostic-message]')?.addEventListener('submit', send);
     app.querySelector('[data-diagnostic-finish]')?.addEventListener('click', () => mutate('finish'));
+    app.querySelector('[data-diagnostic-clarify]')?.addEventListener('click', event => mutate('clarify', { axisId: event.currentTarget.dataset.axisId, practiceId: event.currentTarget.dataset.practiceId }));
     app.querySelectorAll('[data-diagnostic-revise]').forEach(b => b.addEventListener('click', () => mutate('revise', { axis: Number(b.dataset.diagnosticRevise) })));
     app.querySelector('[data-diagnostic-new]')?.addEventListener('click', newDiagnostic);
     app.querySelector('[data-diagnostic-pdf]')?.addEventListener('click', download);
@@ -112,14 +113,23 @@ export function createDiagnostic(deps) {
     }
     const covered = AXES.filter(a => a.criteria.every(c => current.facts[c.id])).length;
     const answeredQuestions = current.answers?.length || 0;
+    const initialAnswers = (current.answers || []).filter(answer => !String(answer.question_id).startsWith('clarify-')).length;
+    const clarifications = Math.max(0, answeredQuestions - initialAnswers);
     const questionIndex = Number.isInteger(current.question) ? current.question : 0;
+    const activeAxis = current.followup ? AXES.find(axis => axis.id === current.followup.axis_id) : AXES.find(axis => axis.id === QUESTIONS[questionIndex]?.axis_id);
+    const missing = AXES.flatMap(axis => axis.criteria.map(criterion => ({ axis, criterion }))).filter(({ criterion }) => scoreCriterion(current.facts?.[criterion.id]) === null);
     const progressText = current.phase === 'review'
-      ? `${answeredQuestions} de ${QUESTIONS.length} preguntas respondidas · ${covered} de 6 ejes cubiertos`
+      ? `${initialAnswers} preguntas iniciales respondidas en ${covered} de 6 ejes${clarifications ? ` · ${clarifications} aclaración${clarifications === 1 ? '' : 'es'} adicional${clarifications === 1 ? '' : 'es'}` : ''}`
       : current.phase === 'context'
-        ? 'Antes de empezar · 0 de 12 preguntas respondidas'
-        : `Eje ${Math.floor(questionIndex / 2) + 1} de 6 · Pregunta ${questionIndex + 1} de ${QUESTIONS.length}`;
-    shell(`<div class="${current.phase === 'review' ? '' : 'diagnostic-conversation'}"><p class="eyebrow">Diagnóstico digital · Conversación</p><h1>Conversemos sobre tu negocio.</h1>${current.phase !== 'review' ? `<div class="diagnostic-chat-heading"><span class="diagnostic-avatar" aria-hidden="true">J</span><div><strong>${esc(current.phase === 'context' ? 'Primero, conozcamos tu negocio' : AXES[Math.floor(questionIndex / 2)]?.name || 'Tu negocio')}</strong><small>Una pregunta a la vez · A tu ritmo</small></div></div>` : ''}<p>${progressText} · Puedes decir «no sé» cuando lo necesites.</p><progress max="${QUESTIONS.length}" value="${answeredQuestions}" aria-label="Preguntas respondidas"></progress><div class="diagnostic-chat" role="log" aria-label="Conversación">${current.messages.map(m => `<article class="diagnostic-message ${m.role === 'user' ? 'from-user' : ''}"><strong>${m.role === 'user' ? 'Tú' : 'Jorkcáceres'}</strong><p>${esc(m.content)}</p></article>`).join('')}</div>
-      ${current.phase === 'review' ? `<section class="diagnostic-review"><h2>Revisión de tus respuestas</h2><p>${answeredQuestions} de ${QUESTIONS.length} preguntas respondidas en ${covered} de 6 ejes. Ya podemos generar el diagnóstico. Un eje puede aparecer como «Información insuficiente» si tus respuestas no aportan evidencia directa de esa práctica.</p><p>${esc(current.editorial?.summary || current.context)}</p><details class="card"><summary>Revisar mis respuestas</summary>${current.messages.filter(message => message.role === 'user').map(message => `<p>${esc(message.content)}</p>`).join('')}</details><button class="button primary" data-diagnostic-finish>Generar mi diagnóstico</button></section>`  : '<form data-diagnostic-message class="diagnostic-compose"><label class="field" for="diagnostic-answer">Tu respuesta<textarea id="diagnostic-answer" name="message" rows="3" maxlength="2000" required></textarea></label><button class="button primary" type="submit">Enviar respuesta</button></form>'}
+        ? 'Antes de empezar · 6 ejes por conocer'
+        : current.followup
+          ? `Aclaración para ${activeAxis?.name || 'tu negocio'}`
+          : `Eje ${questionIndex + 1} de ${QUESTIONS.length} · Una pregunta por eje`;
+    const missingHTML = missing.length
+      ? `<div class="notice"><strong>Información por completar</strong><p>Hay ${missing.length} práctica${missing.length === 1 ? '' : 's'} que necesitan una aclaración para que el informe cubra todos los ejes.</p><ul>${missing.map(({ axis, criterion }) => `<li>${esc(axis.name)}: ${esc(criterion.name)}</li>`).join('')}</ul></div><div class="diagnostic-actions"><button class="button primary" data-diagnostic-clarify data-axis-id="${esc(missing[0].axis.id)}" data-practice-id="${esc(missing[0].criterion.id)}">Completar información<span class="circle">${arrowIcon}</span></button><button class="button secondary" data-diagnostic-finish>Generar con la información actual</button></div>`
+      : `<p class="notice">La información está lista para generar el diagnóstico de los seis ejes.</p><button class="button primary" data-diagnostic-finish>Generar mi diagnóstico<span class="circle">${arrowIcon}</span></button>`;
+    shell(`<div class="${current.phase === 'review' ? '' : 'diagnostic-conversation'}"><p class="eyebrow">Diagnóstico digital · Conversación</p><h1>Conversemos sobre tu negocio.</h1>${current.phase !== 'review' ? `<div class="diagnostic-chat-heading"><span class="diagnostic-avatar" aria-hidden="true">J</span><div><strong>${esc(current.phase === 'context' ? 'Primero, conozcamos tu negocio' : activeAxis?.name || 'Tu negocio')}</strong><small>Una pregunta a la vez · A tu ritmo</small></div></div>` : ''}<p>${progressText} · Puedes decir «no sé» cuando lo necesites.</p><progress max="${QUESTIONS.length}" value="${Math.min(initialAnswers, QUESTIONS.length)}" aria-label="Ejes respondidos"></progress><div class="diagnostic-chat" role="log" aria-label="Conversación">${current.messages.map(m => `<article class="diagnostic-message ${m.role === 'user' ? 'from-user' : ''}"><strong>${m.role === 'user' ? 'Tú' : 'Jorkcáceres'}</strong><p>${esc(m.content)}</p></article>`).join('')}</div>
+      ${current.phase === 'review' ? `<section class="diagnostic-review"><h2>Revisión de tus respuestas</h2><p>Revisa la información antes de generar tu diagnóstico. Solo te pediremos una aclaración si hace falta para completar algún eje.</p><p>${esc(current.editorial?.summary || current.context)}</p><details class="card"><summary>Revisar mis respuestas</summary>${current.messages.filter(message => message.role === 'user').map(message => `<p>${esc(message.content)}</p>`).join('')}</details>${missingHTML}</section>` : '<form data-diagnostic-message class="diagnostic-compose"><label class="field" for="diagnostic-answer">Tu respuesta<textarea id="diagnostic-answer" name="message" rows="3" maxlength="2000" required></textarea></label><button class="button primary" type="submit">Enviar respuesta</button></form>'}
       <p class="diagnostic-processing" data-diagnostic-status role="status"></p><p data-diagnostic-error hidden role="alert"></p></div>`);
     bind(); const chat = app.querySelector('.diagnostic-chat'); chat.scrollTop = chat.scrollHeight;
     app.querySelector('#diagnostic-answer')?.focus({ preventScroll: true });
