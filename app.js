@@ -1,6 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.0';
 
-import { createDiagnostic } from './diagnostic/ui.js?v=1.2.11';
+import { createDiagnostic } from './diagnostic/ui.js?v=1.2.12';
 
 const app = document.querySelector('#app');
 const logo = 'assets/jorkcaceres-horizontal-negro.png';
@@ -1098,7 +1098,20 @@ function showTemporaryPassword(password, title, message) {
 }
 async function submitCsat(event) { event.preventDefault(); const form = new FormData(event.target); const token = captchaToken('csat'); if (!token) return modal('Verificación requerida', '<p>Completa la verificación de seguridad antes de enviar la encuesta.</p>'); startActivity('Enviando encuesta…'); try { const { data, error } = await supabase.functions.invoke('submit-csat', { body: { token, email: form.get('email').trim().toLowerCase(), satisfaction: Number(form.get('satisfaction')), expectation: form.get('expectation'), return_intent: form.get('return'), improvement: form.get('improvement').trim() || null } }); if (error || data?.error) { resetTurnstile('csat'); return modal('No fue posible enviar la encuesta', `<p>${esc(data?.error || errorText(error))}</p>`); } event.target.reset(); resetTurnstile('csat'); modal('¡Gracias por tu tiempo!', '<p>Tu respuesta ha sido registrada. Tu opinión es importante para seguir mejorando.</p>'); } finally { finishActivity(); } }
 async function hydrate() { const { data: { session } } = await supabase.auth.getSession(); state.session = session; state.profile = null; if (session) { const { data } = await supabase.from('profiles').select('role, client_id').eq('id', session.user.id).maybeSingle(); state.profile = data; } }
-async function render() { const route = location.hash.replace('#', '').split('?')[0] || 'login'; if (route === 'actualizar-clave') return recoveryView(); if (state.session?.user?.user_metadata?.force_password_change) { location.hash = '#actualizar-clave'; return; } if (privateRoutes.has(route)) { if (!state.session) { location.hash = '#login'; return; } if (route.startsWith('admin') && state.profile?.role !== 'admin') { location.hash = '#inicio'; return; } } const view = { diagnostico: diagnostic.view, 'diagnostico-nuevo': diagnostic.newDiagnostic, diagnosticos: () => diagnostic.history(false), 'admin-diagnosticos': () => diagnostic.history(true), 'admin-sugerencias': diagnostic.suggestions, login: loginView, inicio: homeView, proyectos: projectsView, servicios: servicesView, encuestas: surveysView, satisfaccion: csatView, admin: adminView, 'admin-clientes': adminClientsView, 'admin-proyectos': adminProjectsView, 'admin-servicios': adminServicesView, 'admin-pagos': adminPaymentsView, 'admin-encuestas': adminSurveysView, 'admin-portal': adminPortalView }[route] || loginView; await view(); window.scrollTo(0, 0); }
+async function render() {
+  const route = location.hash.replace('#', '').split('?')[0] || 'login';
+  const diagnosticRecord = /^diagnostico-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.exec(route);
+  if (route === 'actualizar-clave') return recoveryView();
+  if (state.session?.user?.user_metadata?.force_password_change) { location.hash = '#actualizar-clave'; return; }
+  if (privateRoutes.has(route) || diagnosticRecord) {
+    if (!state.session) { location.hash = '#login'; return; }
+    if (route.startsWith('admin') && state.profile?.role !== 'admin') { location.hash = '#inicio'; return; }
+  }
+  const view = diagnosticRecord ? () => diagnostic.record(diagnosticRecord[1]) : {
+    diagnostico: diagnostic.view, 'diagnostico-nuevo': diagnostic.newDiagnostic, diagnosticos: () => diagnostic.history(false), 'admin-diagnosticos': () => diagnostic.history(true), 'admin-sugerencias': diagnostic.suggestions, login: loginView, inicio: homeView, proyectos: projectsView, servicios: servicesView, encuestas: surveysView, satisfaccion: csatView, admin: adminView, 'admin-clientes': adminClientsView, 'admin-proyectos': adminProjectsView, 'admin-servicios': adminServicesView, 'admin-pagos': adminPaymentsView, 'admin-encuestas': adminSurveysView, 'admin-portal': adminPortalView
+  }[route] || loginView;
+  await view(); window.scrollTo(0, 0);
+}
 function modal(title, content, showClose = true) { document.body.insertAdjacentHTML('beforeend', `<div class="modal-backdrop" onclick="if(event.target===this)this.remove()"><section class="modal"><h2>${title}</h2><div>${content}</div>${showClose ? '<div class="modal-actions"><button class="button" onclick="this.closest(\'.modal-backdrop\').remove()">Cerrar <span class="circle">×</span></button></div>' : ''}</section></div>`); }
 function closeTopModal() { document.querySelector('.modal-backdrop:last-of-type')?.remove(); }
 function copyProjectLink(value, element) { navigator.clipboard?.writeText(decodeURIComponent(value)); element.innerHTML = 'Enlace copiado <span class="circle">✓</span>'; }
