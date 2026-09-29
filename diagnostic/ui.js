@@ -136,7 +136,7 @@ export function createDiagnostic(deps) {
     const ownerKey = key(), route = location.hash;
     const renderHistory = body => admin
       ? adminModuleShell('diagnosticos', 'Diagnósticos', 'Consulta las evaluaciones digitales de tus clientes y sus resultados.', body)
-      : shell(`<div class="diagnostic-actions diagnostic-history-nav"><a class="button secondary" href="#inicio">Volver al inicio</a><a class="button primary" href="#diagnostico-nuevo">Hacer nueva evaluación<span class="circle">${arrowIcon}</span></a></div><h1>Mi historial digital</h1>${body}`);
+      : shell(`<nav class="breadcrumbs" aria-label="Ruta de navegación"><a href="#inicio">Portal</a><span class="breadcrumb-separator" aria-hidden="true">/</span><span aria-current="page">Diagnósticos digitales</span></nav><h1>Mis diagnósticos digitales</h1><p class="lead">Consulta los resultados de tus evaluaciones y conserva el avance de tu negocio.</p><div class="admin-module-actions"><a class="button primary" href="#diagnostico-nuevo">Hacer nueva evaluación<span class="circle">${arrowIcon}</span></a></div>${body}`);
     renderHistory('<p>Cargando evaluaciones…</p>');
     const { data, count, error: failure } = await supabase.from('digital_diagnostics').select('id,contact,context,result,created_at,model_version,email', { count: 'exact' }).order('created_at', { ascending: false }).order('id', { ascending: false }).range((historyPage - 1) * 10, historyPage * 10 - 1);
     if (ownerKey !== key() || route !== location.hash) return;
