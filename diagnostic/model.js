@@ -1,4 +1,4 @@
-export const VERSION = '1.2.3';
+export const VERSION = '1.3.0';
 export const LEVELS = ['No establecido', 'Inicial', 'En desarrollo', 'Gestionado', 'Medido', 'En mejora continua'];
 const criterion = (id, name, steps) => ({ id, name, steps });
 export const AXES = [
@@ -58,8 +58,9 @@ export function evaluate(facts = {}, context = '') {
   const axes = AXES.map(axis => {
     const criteria = axis.criteria.map(c => ({ id: c.id, name: c.name, score: scoreCriterion(facts[c.id]), ...{ fact: facts[c.id] || { status: 'unknown', evidence: '', steps: [] } } }));
     const applicable = criteria.filter(c => c.fact.status !== 'not_applicable');
-    const score = applicable.length && applicable.every(c => c.score !== null) ? applicable.reduce((n, c) => n + c.score, 0) / applicable.length : null;
-    return { id: axis.id, name: axis.name, score, criteria };
+    const rawScore = applicable.length && applicable.every(c => c.score !== null) ? applicable.reduce((n, c) => n + c.score, 0) / applicable.length : null;
+    const score = rawScore === null ? null : Math.round(rawScore * 2) / 2;
+    return { id: axis.id, name: axis.name, score, sufficient: criteria.every(c => c.score !== null), criteria };
   });
   const candidates = axes.map((a, index) => ({ ...a, index })).filter(a => a.score !== null && a.score < 4)
     .sort((a, b) => a.score - b.score);

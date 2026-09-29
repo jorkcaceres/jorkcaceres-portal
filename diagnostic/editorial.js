@@ -27,7 +27,7 @@ export function validateEditorial(data, messages, result) {
     return block.text.trim();
   };
   const summary = validate(data.summary), criteria = {};
-  for (const a of result.axes) for (const c of a.criteria) criteria[c.id] = c.fact.status === 'unknown' ? 'Falta información para evaluar esta práctica.' : validate(data.criteria?.[c.id]);
+  for (const a of result.axes) for (const c of a.criteria) criteria[c.id] = c.fact.status === 'unknown' ? 'No evaluable con la información compartida.' : validate(data.criteria?.[c.id]);
   const actions = result.actions.map((a, i) => {
     const draft = data.actions?.[a.axis];
     if (!draft || ['title','step','indicator'].some(k => typeof draft[k] !== 'string' || !draft[k].trim() || draft[k].length > 500)) throw new Error('La recomendación está incompleta.');

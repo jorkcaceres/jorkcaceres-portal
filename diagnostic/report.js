@@ -1,4 +1,4 @@
-import { LEVELS } from './model.js?v=1.2.2';
+import { LEVELS } from './model.js?v=1.3.0';
 export const escape = (v = '') => String(v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 export const scoreLabel = score => score === null ? 'Información insuficiente' : `${score.toFixed(1)} / 5 · ${LEVELS[Math.floor(score)]}`;
 export function comparison(record) {
@@ -30,7 +30,7 @@ export function radar(result) {
 export function reportHTML(record) {
   const r = record.result;
   return `<section class="diagnostic-result"><p class="eyebrow">Tu punto de partida · Modelo ${escape(r.version)}</p><h1>Diagnóstico de madurez digital</h1><p class="lead">${escape(record.contact?.company_name || 'Tu negocio')}</p><p>${escape(r.editorial?.summary || record.context || '')}</p>
-    <p>Este resultado se basa en la información que compartiste y orienta tus próximos pasos.</p><p class="field-note">Es una autoevaluación orientativa, no una auditoría. La escala va de 1 (Inicial) a 5 (En mejora continua).</p>
+    <p>Este resultado se basa en la información que compartiste y orienta tus próximos pasos.</p><p class="field-note">Es una autoevaluación orientativa, no una auditoría. La escala va de 0 (No establecido) a 5 (En mejora continua). Cada eje puede tener decimales porque promedia sus dos prácticas.</p>
     <div class="diagnostic-result-grid"><div class="card">${radar(r)}<p>${r.coverage} de 6 ejes con información suficiente.${r.coverage < 6 ? ' Los puntos sin datos no se dibujan ni se convierten en cero.' : ''}</p></div>
     <div class="card"><h2>Tu perfil digital</h2>${r.axes.map(a => `<div class="diagnostic-score"><strong>${escape(a.name)}</strong><span>${escape(scoreLabel(a.score))}</span></div>`).join('')}<p>Avanzar significa mejorar prácticas útiles para tu negocio, no comprar más herramientas.</p></div></div>
     ${comparisonHTML(record)}<h2>Lo que compartiste</h2>${r.axes.map(a => `<details class="card"><summary>${escape(a.name)}</summary>${a.criteria.map(c => `<p><strong>${escape(c.name)}${c.name.endsWith('?') ? '' : ':'}</strong> ${escape(r.editorial?.criteria?.[c.id] || c.fact.evidence || 'Necesitamos más información para evaluar esta práctica.')}<br><small>${escape(scoreLabel(c.score))}</small></p>`).join('')}</details>`).join('')}
@@ -113,7 +113,7 @@ export async function makePDF(record) {
   title('Diagnóstico de madurez digital');
   paragraph(record.contact?.company_name || 'Tu negocio', 14, true, textColor, 14);
   paragraph('Este resultado organiza la información que compartiste y orienta próximos pasos prácticos. Es una autoevaluación orientativa, no una auditoría.', 11, false, muted, 8);
-  paragraph('Escala: 1 Inicial a 5 En mejora continua. Los temas sin información suficiente no se califican.', 10, false, muted, 18);
+  paragraph('Escala: 0 No establecido a 5 En mejora continua. Cada eje puede tener decimales porque promedia sus dos prácticas. Los temas sin información suficiente no se califican.', 10, false, muted, 18);
 
   const coverTop = y, coverHeight = 258, leftWidth = 238, gap = 18, rightX = margin + leftWidth + gap, rightWidth = width - leftWidth - gap;
   ensure(coverHeight + 20);
