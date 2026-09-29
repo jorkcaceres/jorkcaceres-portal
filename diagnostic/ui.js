@@ -170,7 +170,7 @@ export function createDiagnostic(deps) {
     app.querySelectorAll('[data-suggestion-page]').forEach(b => b.onclick = () => { suggestionsPage += Number(b.dataset.suggestionPage); suggestions(); });
     app.querySelectorAll('[data-feedback-state]').forEach(select => select.onchange = async () => { select.disabled = true; const { error: failure } = await supabase.from('digital_diagnostic_feedback').update({ status: select.value }).eq('id', select.dataset.feedbackState); if (failure) error('No se pudo guardar el estado. Recarga para comprobarlo.'); select.disabled = false; });
   }
-  function newDiagnostic() { current = null; credentials = null; pending = null; save(); view(); }
+  function newDiagnostic() { current = null; credentials = null; pending = null; save(); if (location.hash !== '#diagnostico-nuevo') { location.hash = '#diagnostico-nuevo'; return; } view(); }
   function clear() { suggestionsPage = 1; historyAdmin = null; feedbackDraft = ''; feedbackId = null; current = null; credentials = null; pending = null; storageKey = ''; historyPage = 1; }
   return { view, newDiagnostic, history, record, suggestions, clear };
 }
