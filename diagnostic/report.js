@@ -5,7 +5,8 @@ export function comparison(record) {
   const previous = record.previous;
   if (!previous) return null;
   const sameBusiness = String(previous.contact?.company_name || '').trim().toLocaleLowerCase() === String(record.contact?.company_name || '').trim().toLocaleLowerCase();
-  if (previous.result.version !== record.result.version || !sameBusiness) return { compatible: false, rows: [] };
+  const sameGuidance = String(previous.result.guidance_version || 'base') === String(record.result.guidance_version || 'base');
+  if (previous.result.version !== record.result.version || !sameBusiness || !sameGuidance) return { compatible: false, rows: [] };
   return { compatible: true, rows: record.result.axes.map(a => {
     const before = previous.result.axes.find(b => b.id === a.id)?.score ?? null;
     return { name: a.name, before, now: a.score, delta: before === null || a.score === null ? null : a.score - before };
@@ -13,7 +14,7 @@ export function comparison(record) {
 }
 function comparisonHTML(record) {
   const c = comparison(record); if (!c) return '';
-  return `<section class="card"><h2>Respecto a tu evaluación anterior</h2><p>${new Date(record.previous.created_at).toLocaleDateString('es-CO')} → ${new Date(record.created_at).toLocaleDateString('es-CO')}</p>${c.compatible ? c.rows.map(r => `<p><strong>${escape(r.name)}</strong><br>${r.before === null ? 'Pendiente' : r.before.toFixed(1)} → ${r.now === null ? 'Pendiente' : r.now.toFixed(1)} · ${r.delta === null ? 'Sin comparación suficiente' : `${r.delta > 0 ? '+' : ''}${r.delta.toFixed(1)} puntos`}</p>`).join('') : '<p>El nombre del negocio o la versión del modelo cambió. No calculamos diferencias automáticamente.</p>'}<p>Las diferencias reflejan respuestas declaradas. Comprueba que el contexto del negocio siga siendo comparable.</p></section>`;
+  return `<section class="card"><h2>Respecto a tu evaluación anterior</h2><p>${new Date(record.previous.created_at).toLocaleDateString('es-CO')} → ${new Date(record.created_at).toLocaleDateString('es-CO')}</p>${c.compatible ? c.rows.map(r => `<p><strong>${escape(r.name)}</strong><br>${r.before === null ? 'Pendiente' : r.before.toFixed(1)} → ${r.now === null ? 'Pendiente' : r.now.toFixed(1)} · ${r.delta === null ? 'Sin comparación suficiente' : `${r.delta > 0 ? '+' : ''}${r.delta.toFixed(1)} puntos`}</p>`).join('') : '<p>El nombre del negocio, la versión del modelo o la guía de decisión cambió. No calculamos diferencias automáticamente.</p>'}<p>Las diferencias reflejan respuestas declaradas. Comprueba que el contexto del negocio siga siendo comparable.</p></section>`;
 }
 export function radar(result) {
   const point = (i, r) => [220 + Math.cos(-Math.PI / 2 + i * Math.PI / 3) * r, 180 + Math.sin(-Math.PI / 2 + i * Math.PI / 3) * r];
@@ -150,7 +151,7 @@ export async function makePDF(record) {
     const changesHeight = compared.compatible ? blockHeight('Cambios por eje', changes) : 70;
     title('Respecto a tu evaluación anterior', changesHeight);
     paragraph('Evaluación anterior: ' + new Date(record.previous.created_at).toLocaleDateString('es-CO'), 9.5, false, muted, 7);
-    if (compared.compatible) textBlock('Cambios por eje', changes); else paragraph('El negocio o la versión del modelo cambió. Por eso no calculamos diferencias automáticas.');
+    if (compared.compatible) textBlock('Cambios por eje', changes); else paragraph('El negocio, la versión del modelo o la guía de decisión cambió. Por eso no calculamos diferencias automáticas.');
   }
   paragraph('Referencia del diagnóstico: ' + (record.id || 'Vista de prueba'), 8.5, false, muted, 0);
   const pages = pdf.getPages();
