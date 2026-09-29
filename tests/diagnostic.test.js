@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { AXES, evaluate, scoreCriterion } from '../diagnostic/model.js';
+import { AXES, evaluate, scoreCriterion , QUESTIONS } from '../diagnostic/model.js';
 import { reportHTML, radar, makePDF, comparison } from '../diagnostic/report.js';
 
 const observed = n => ({ status: 'observed', evidence: 'Revisamos los pendientes cada semana.', steps: Array.from({ length: 5 }, (_, i) => i < n ? 'Revisamos los pendientes cada semana.' : '') });
@@ -57,4 +57,11 @@ test('commercial goal comes before a hidden continuity rule', () => {
   const result = evaluate(facts, 'Quiero mejorar mi modelo comercial y atraer nuevos clientes.');
   assert.equal(result.actions[0].axis, 'Dirección y prioridades');
   assert.equal(result.actions[1].axis, 'Presencia y captación');
+});
+
+
+test('questions are mapped exactly to every model practice', () => {
+  const expected = AXES.flatMap(axis => axis.criteria.map(criterion => `${axis.id}-${criterion.id}`)).sort();
+  const actual = QUESTIONS.map(question => question.id).sort();
+  assert.deepEqual(actual, expected);
 });

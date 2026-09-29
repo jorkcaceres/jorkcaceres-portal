@@ -1,4 +1,4 @@
-export const VERSION = '1.2.0';
+export const VERSION = '1.2.1';
 export const LEVELS = ['No establecido', 'Inicial', 'En desarrollo', 'Gestionado', 'Medido', 'En mejora continua'];
 const criterion = (id, name, steps) => ({ id, name, steps });
 export const AXES = [
