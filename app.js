@@ -487,7 +487,7 @@ async function saveDiagnosticSettings(event) {
   const submit = event.target.querySelector('[type="submit"]');
   submit.disabled = true; submit.textContent = 'Guardando…';
   try {
-    const values = { id: 'principal', guidance_version: guidanceVersion, analysis_guide: analysisGuide, response_guide: responseGuide };
+    const values = { id: 'principal', guidance_version: guidanceVersion, analysis_guide: analysisGuide, response_guide: responseGuide, updated_at: new Date().toISOString() };
     const { error } = await supabase.from('diagnostic_settings').upsert(values, { onConflict: 'id' });
     if (error) throw error;
     state.diagnosticSettings = { ...values, updated_at: new Date().toISOString() };
