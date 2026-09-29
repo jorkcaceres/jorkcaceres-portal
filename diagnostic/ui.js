@@ -6,7 +6,7 @@ export function createDiagnostic(deps) {
   const { app, supabase, state, header, publicHeader, footer, mountTurnstile, captchaToken, resetTurnstile, helpUrl, adminNav, adminModuleShell, arrowIcon } = deps;
   let suggestionsPage = 1, historyAdmin = null;
   let feedbackDraft = '', feedbackId = null, feedbackBusy = false;
-  let busy = false, current = null, pending = null, storageKey = '', credentials = null, historyPage = 1;
+  let busy = false, generating = false, current = null, pending = null, storageKey = '', credentials = null, historyPage = 1;
   const key = () => `jc-diagnostic-v1:${state.session?.user?.id || 'guest'}`;
   const load = () => { if (storageKey !== key()) { current = null; pending = null; storageKey = key(); credentials = null; try { credentials = JSON.parse(sessionStorage.getItem(storageKey) || 'null'); } catch {} } };
   const save = () => { try { sessionStorage.setItem(storageKey, JSON.stringify(credentials)); } catch {} };
@@ -26,7 +26,7 @@ export function createDiagnostic(deps) {
     app.querySelector('[data-diagnostic-prepare]')?.addEventListener('click', () => mutate('prepare'));
     app.querySelector('[data-diagnostic-start]')?.addEventListener('submit', start);
     app.querySelector('[data-diagnostic-message]')?.addEventListener('submit', send);
-    app.querySelector('[data-diagnostic-finish]')?.addEventListener('click', () => mutate('finish'));
+    app.querySelector('[data-diagnostic-finish]')?.addEventListener('click', generateDiagnostic);
     app.querySelector('[data-diagnostic-clarify]')?.addEventListener('click', event => mutate('clarify', { axisId: event.currentTarget.dataset.axisId, practiceId: event.currentTarget.dataset.practiceId }));
     app.querySelectorAll('[data-diagnostic-revise]').forEach(b => b.addEventListener('click', () => mutate('revise', { axis: Number(b.dataset.diagnosticRevise) })));
     app.querySelector('[data-diagnostic-new]')?.addEventListener('click', newDiagnostic);
@@ -65,17 +65,52 @@ export function createDiagnostic(deps) {
     catch (err) { error(err.message); resetTurnstile('diagnostic'); }
     finally { busy = false; if (e.submitter?.isConnected) e.submitter.disabled = false; }
   }
-  async function mutate(action, extra = {}) {
-    if (busy) return;
-    busy = true; app.querySelectorAll('.diagnostic-compose button,[data-diagnostic-finish],[data-diagnostic-prepare],[data-diagnostic-revise]').forEach(b => b.disabled = true);
+  function progress(value, label) {
+    const box = app.querySelector('[data-diagnostic-progress]');
+    if (!box) return;
+    box.hidden = false;
+    box.querySelector('progress').value = value;
+    box.querySelector('[data-diagnostic-progress-value]').textContent = `${value}%`;
+    box.querySelector('[data-diagnostic-progress-label]').textContent = label;
+  }
+  async function mutate(action, extra = {}, options = {}) {
+    if (busy) return false;
+    busy = true; app.querySelectorAll('.diagnostic-compose button,[data-diagnostic-finish],[data-diagnostic-prepare],[data-diagnostic-revise],[data-diagnostic-clarify]').forEach(b => b.disabled = true);
     const ownerKey = key(), route = location.hash;
     const signature = JSON.stringify({ action, ...extra });
     if (!pending || pending.signature !== signature) pending = { signature, requestId: crypto.randomUUID() };
-    const status = app.querySelector('[data-diagnostic-status]'); if (status) status.textContent = action === 'prepare' || action === 'finish' ? 'Estoy organizando y comprobando tu diagnóstico. Puede tomar unos segundos…' : 'Estoy leyendo tu respuesta y preparando la siguiente pregunta…';
+    const status = app.querySelector('[data-diagnostic-status]');
+    if (!options.quiet && status) status.textContent = action === 'prepare' || action === 'finish' ? 'Estoy organizando y comprobando tu diagnóstico. Puede tomar unos segundos…' : 'Estoy leyendo tu respuesta y preparando la siguiente pregunta…';
     app.querySelector('.diagnostic-chat')?.setAttribute('aria-busy', 'true');
-    try { const data = await invoke({ action, ...credentials, requestId: pending.requestId, ...extra }); if (ownerKey !== key()) return; current = data.state; pending = null; if (action === 'finish' && current?.phase === 'done' && credentials?.id) { location.hash = `#diagnostico-${credentials.id}`; return; } if (route === location.hash) view(); }
-    catch (err) { error(err.message); }
-    finally { busy = false; app.querySelector('.diagnostic-chat')?.setAttribute('aria-busy', 'false'); if (status?.isConnected) status.textContent = ''; app.querySelectorAll('.diagnostic-compose button,[data-diagnostic-finish],[data-diagnostic-prepare],[data-diagnostic-revise]').forEach(b => b.disabled = false); }
+    try {
+      const data = await invoke({ action, ...credentials, requestId: pending.requestId, ...extra });
+      if (ownerKey !== key()) return false;
+      current = data.state; pending = null;
+      if (action === 'finish' && current?.phase === 'done' && credentials?.id && options.navigate !== false) { location.hash = `#diagnostico-${credentials.id}`; return true; }
+      if (options.render !== false && route === location.hash) view();
+      return true;
+    } catch (err) { error(err.message); return false; }
+    finally {
+      busy = false; app.querySelector('.diagnostic-chat')?.setAttribute('aria-busy', 'false');
+      if (!options.quiet && status?.isConnected) status.textContent = '';
+      app.querySelectorAll('.diagnostic-compose button,[data-diagnostic-finish],[data-diagnostic-prepare],[data-diagnostic-revise],[data-diagnostic-clarify]').forEach(b => b.disabled = false);
+    }
+  }
+  async function generateDiagnostic() {
+    if (generating) return;
+    generating = true;
+    app.querySelectorAll('[data-diagnostic-finish],[data-diagnostic-clarify]').forEach(button => button.disabled = true);
+    try {
+      progress(20, 'Validando las respuestas compartidas…');
+      if (!await mutate('prepare', {}, { render: false, quiet: true })) return;
+      progress(50, 'Analizando la evidencia de cada eje…');
+      if (!await mutate('verify', {}, { render: false, quiet: true })) return;
+      progress(80, 'Verificando y organizando tu informe…');
+      if (!await mutate('finish', {}, { render: false, quiet: true, navigate: false })) return;
+      progress(100, 'Tu diagnóstico está listo.');
+      await new Promise(resolve => setTimeout(resolve, 250));
+      if (current?.phase === 'done' && credentials?.id) location.hash = `#diagnostico-${credentials.id}`;
+    } finally { generating = false; }
   }
   async function send(e) { e.preventDefault(); const input = e.target.querySelector('textarea'); await mutate('message', { message: input.value }); }
   async function download() {
@@ -126,10 +161,10 @@ export function createDiagnostic(deps) {
           ? `Aclaración para ${activeAxis?.name || 'tu negocio'}`
           : `Eje ${questionIndex + 1} de ${QUESTIONS.length} · Una pregunta por eje`;
     const missingHTML = missing.length
-      ? `<div class="notice"><strong>Información por completar</strong><p>Hay ${missing.length} práctica${missing.length === 1 ? '' : 's'} que necesitan una aclaración para que el informe cubra todos los ejes.</p><ul>${missing.map(({ axis, criterion }) => `<li>${esc(axis.name)}: ${esc(criterion.name)}</li>`).join('')}</ul></div><div class="diagnostic-actions"><button class="button primary" data-diagnostic-clarify data-axis-id="${esc(missing[0].axis.id)}" data-practice-id="${esc(missing[0].criterion.id)}">Completar información<span class="circle">${arrowIcon}</span></button><button class="button secondary" data-diagnostic-finish>Generar con la información actual</button></div>`
-      : `<p class="notice">La información está lista para generar el diagnóstico de los seis ejes.</p><button class="button primary" data-diagnostic-finish>Generar mi diagnóstico<span class="circle">${arrowIcon}</span></button>`;
+      ? `<h2>Información por completar</h2><p>Para cubrir todos los ejes, falta ${missing.length} aclaración${missing.length === 1 ? '' : 'es'}.</p><div class="notice"><ul>${missing.map(({ axis, criterion }) => `<li><strong>${esc(axis.name)}:</strong> ${esc(criterion.name)}</li>`).join('')}</ul></div><div class="diagnostic-actions"><button class="button primary" data-diagnostic-clarify data-axis-id="${esc(missing[0].axis.id)}" data-practice-id="${esc(missing[0].criterion.id)}">Completar información<span class="circle">${arrowIcon}</span></button><button class="button secondary" data-diagnostic-finish>Generar con la información actual</button></div>`
+      : `<h2>Información lista para diagnosticar</h2><p>Tus respuestas permiten generar el diagnóstico de los seis ejes.</p><button class="button primary" data-diagnostic-finish>Generar mi diagnóstico<span class="circle">${arrowIcon}</span></button>`;
     shell(`<div class="${current.phase === 'review' ? '' : 'diagnostic-conversation'}"><p class="eyebrow">Diagnóstico digital · Conversación</p><h1>Conversemos sobre tu negocio.</h1>${current.phase !== 'review' ? `<div class="diagnostic-chat-heading"><span class="diagnostic-avatar" aria-hidden="true">J</span><div><strong>${esc(current.phase === 'context' ? 'Primero, conozcamos tu negocio' : activeAxis?.name || 'Tu negocio')}</strong><small>Una pregunta a la vez · A tu ritmo</small></div></div>` : ''}<p>${progressText} · Puedes decir «no sé» cuando lo necesites.</p><progress max="${QUESTIONS.length}" value="${Math.min(initialAnswers, QUESTIONS.length)}" aria-label="Ejes respondidos"></progress><div class="diagnostic-chat" role="log" aria-label="Conversación">${current.messages.map(m => `<article class="diagnostic-message ${m.role === 'user' ? 'from-user' : ''}"><strong>${m.role === 'user' ? 'Tú' : 'Jorkcáceres'}</strong><p>${esc(m.content)}</p></article>`).join('')}</div>
-      ${current.phase === 'review' ? `<section class="diagnostic-review"><h2>Revisión de tus respuestas</h2><p>Revisa la información antes de generar tu diagnóstico. Solo te pediremos una aclaración si hace falta para completar algún eje.</p><details class="card"><summary>Revisar mis respuestas</summary>${current.messages.filter(message => message.role === 'user').map(message => `<p>${esc(message.content)}</p>`).join('')}</details>${missingHTML}</section>` : '<form data-diagnostic-message class="diagnostic-compose"><label class="field" for="diagnostic-answer">Tu respuesta<textarea id="diagnostic-answer" name="message" rows="3" maxlength="2000" required></textarea></label><button class="button primary" type="submit">Enviar respuesta</button></form>'}
+      ${current.phase === 'review' ? `<section class="diagnostic-review">${missingHTML}<section class="diagnostic-progress" data-diagnostic-progress hidden aria-live="polite"><div><span class="diagnostic-progress-spinner" aria-hidden="true"></span><strong data-diagnostic-progress-label>Preparando tu diagnóstico…</strong><span data-diagnostic-progress-value>0%</span></div><progress max="100" value="0" aria-label="Progreso de generación del diagnóstico"></progress></section></section>` : '<form data-diagnostic-message class="diagnostic-compose"><label class="field" for="diagnostic-answer">Tu respuesta<textarea id="diagnostic-answer" name="message" rows="3" maxlength="2000" required></textarea></label><button class="button primary" type="submit">Enviar respuesta</button></form>'}
       <p class="diagnostic-processing" data-diagnostic-status role="status"></p><p data-diagnostic-error hidden role="alert"></p></div>`);
     bind(); const chat = app.querySelector('.diagnostic-chat'); chat.scrollTop = chat.scrollHeight;
     app.querySelector('#diagnostic-answer')?.focus({ preventScroll: true });
