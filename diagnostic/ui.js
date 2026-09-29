@@ -131,6 +131,7 @@ export function createDiagnostic(deps) {
   }
   async function history(admin = false) {
     load();
+    if (!admin && !state.session) { location.hash = '#login'; return; }
     if (historyAdmin !== admin) { historyPage = 1; historyAdmin = admin; }
     const ownerKey = key(), route = location.hash;
     const renderHistory = body => admin
