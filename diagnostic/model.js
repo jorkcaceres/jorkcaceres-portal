@@ -1,4 +1,4 @@
-export const VERSION = '1.2.1';
+export const VERSION = '1.2.2';
 export const LEVELS = ['No establecido', 'Inicial', 'En desarrollo', 'Gestionado', 'Medido', 'En mejora continua'];
 const criterion = (id, name, steps) => ({ id, name, steps });
 export const AXES = [
@@ -40,10 +40,10 @@ export const QUESTIONS = [
 
 export const ACTIONS = [
   ['Elige una mejora y una fecha de revisión', 'Anota el objetivo, quién lo hará y qué cambio esperas observar. Revisa el avance en dos semanas.', 'Una prioridad con responsable y revisión realizada.', 'Puedes hacerlo con tu equipo.'],
-  ['Revisa cómo te encuentran y contactan', 'Comprueba que el canal más relevante explica lo que ofreces y permite contactarte. Registra el origen de las próximas consultas.', 'Consultas con origen identificado.', 'Puedes empezar por tu cuenta. Jorkcáceres puede ayudarte con Presencia Digital.'],
+  ['Revisa cómo te encuentran y contactan', 'Comprueba que el canal más relevante explica lo que ofreces y permite contactarte. Registra el origen de las próximas consultas.', 'Consultas con origen identificado.', 'Puedes empezar por revisar tu canal principal con información clara, contacto visible y seguimiento de consultas.'],
   ['Reúne los pendientes de tus clientes', 'Usa tu registro actual, si ya tienes uno, para reunir cliente, estado y próxima acción. Revísalo cada semana.', 'Pendientes sin próxima acción.', 'Aprovecha las herramientas que ya tienes. Cualquier CRM o campaña adicional requiere validar la necesidad y el alcance.'],
-  ['Ordena un proceso cotidiano', 'Elige una tarea repetida, escribe sus pasos y evita registrar dos veces la misma información antes de buscar otra herramienta.', 'Errores o repeticiones por semana.', 'Puedes organizarlo internamente. Una Solución Digital requiere primero validar la necesidad.'],
-  ['Define un indicador que te ayude a decidir', 'Elige una pregunta de negocio, identifica una fuente confiable y revisa el indicador semanalmente.', 'Revisiones que terminan en una decisión.', 'Puedes empezar con tus registros. Jorkcáceres puede ayudarte con Inteligencia de Negocio.'],
+  ['Ordena un proceso cotidiano', 'Elige una tarea repetida, escribe sus pasos y evita registrar dos veces la misma información antes de buscar otra herramienta.', 'Errores o repeticiones por semana.', 'Puedes organizarlo internamente y decidir después si realmente necesitas una herramienta adicional.'],
+  ['Define un indicador que te ayude a decidir', 'Elige una pregunta de negocio, identifica una fuente confiable y revisa el indicador semanalmente.', 'Revisiones que terminan en una decisión.', 'Puedes empezar con los registros que ya tienes y comprobar que la información sea suficiente para decidir.'],
   ['Comprueba cómo continuarías trabajando', 'Identifica quién controla las cuentas y cómo recuperar información. Acuerda un responsable para revisar los accesos y la recuperación.', 'Cuentas con responsable y recuperación comprobada.', 'Puedes organizar la revisión. Una evaluación especializada de seguridad requiere un especialista.'],
 ];
 const MEASURED_ACTIONS = [

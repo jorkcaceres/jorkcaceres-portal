@@ -1,4 +1,4 @@
-import { LEVELS } from './model.js?v=1.1.0';
+import { LEVELS } from './model.js?v=1.2.2';
 export const escape = (v = '') => String(v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 export const scoreLabel = score => score === null ? 'Información insuficiente' : `${score.toFixed(1)} / 5 · ${LEVELS[Math.floor(score)]}`;
 export function comparison(record) {
