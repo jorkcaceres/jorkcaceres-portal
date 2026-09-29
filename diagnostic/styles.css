@@ -10,3 +10,7 @@
 .diagnostic-entry-actions{width:100%;max-width:760px;box-sizing:border-box;margin:18px auto 0}.diagnostic-result-nav{margin-top:-10px}.diagnostic-history-nav{margin:0 0 16px}@media(max-width:700px){.diagnostic-actions .button{width:100%;justify-content:space-between}.diagnostic-result-nav{margin-top:-12px}}
 
 .diagnostic-review{max-width:860px;margin:0 auto}.diagnostic-review>h2{margin:0 0 8px}.diagnostic-review>.notice{margin:20px 0;background:#eef4ff;color:#173f82}.diagnostic-review>.notice ul{margin:10px 0 0;padding-left:20px}.diagnostic-progress{margin-top:20px;padding:18px 20px;border:1px solid #d7e2f7;border-radius:16px;background:#f7faff}.diagnostic-progress>div{display:flex;align-items:center;gap:10px;color:#173f82}.diagnostic-progress>div strong{flex:1}.diagnostic-progress>div span:last-child{font-weight:700}.diagnostic-progress-spinner{width:18px;height:18px;border:2px solid #bed0ef;border-top-color:#114396;border-radius:50%;animation:diagnostic-spin .8s linear infinite}.diagnostic-progress progress{width:100%;height:8px;margin:14px 0 0}@keyframes diagnostic-spin{to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){.diagnostic-progress-spinner{animation:none}}
+
+/* El historial no necesita la altura fija de las tarjetas de inicio. */
+.diagnostic-history > .card{min-height:0;padding:24px 26px}
+.diagnostic-history > .card .client-actions{margin-top:14px}
