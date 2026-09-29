@@ -1,4 +1,4 @@
-import { LEVELS } from './model.js?v=1.3.0';
+import { LEVELS } from './model.js?v=1.3.1';
 export const escape = (v = '') => String(v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 export const scoreLabel = score => score === null ? 'Información insuficiente' : `${score.toFixed(1)} / 5 · ${LEVELS[Math.floor(score)]}`;
 export function comparison(record) {
@@ -44,9 +44,12 @@ export async function makePDF(record) {
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
   const ink = rgb(.05, .21, .55), textColor = rgb(.16, .19, .24), muted = rgb(.34, .38, .45);
   const border = rgb(.85, .88, .93), surface = rgb(.97, .98, 1);
-  const margin = 44, width = 507, bottom = 58;
+  const margin = 44, width = 507, bottom = 52;
   let page, y;
-  const safe = value => Array.from(String(value ?? '')).map(char => { try { regular.encodeText(char); return char; } catch { return ' '; } }).join('');
+  const normalizePDF = value => String(value ?? '')
+    .replace(/[“”]/g, '"').replace(/[‘’]/g, "'")
+    .replace(/[–—]/g, '-').replace(/…/g, '...').replace(/•/g, '-').replace(/→/g, 'a');
+  const safe = value => Array.from(normalizePDF(value)).map(char => { try { regular.encodeText(char); return char; } catch { return '?'; } }).join('');
   const addPage = () => {
     page = pdf.addPage([595.28, 841.89]); y = 770;
     page.drawText('Jorkcáceres  |  Diagnóstico digital', { x: margin, y: 803, size: 10, font: bold, color: ink });
@@ -61,103 +64,123 @@ export async function makePDF(record) {
         while (end < word.length && font.widthOfTextAtSize(word.slice(0, end + 1), size) <= maxWidth) end++;
         lines.push(word.slice(0, end)); word = word.slice(end);
       }
-      const next = line ? `${line} ${word}` : word;
+      const next = line ? line + ' ' + word : word;
       if (font.widthOfTextAtSize(next, size) > maxWidth) { if (line) lines.push(line); line = word; } else line = next;
     }
     if (line) lines.push(line);
     return lines;
   };
-  const linesHeight = (lines, size) => lines.length * size * 1.42;
+  const lineHeight = size => size * 1.4;
+  const linesHeight = (lines, size) => lines.length * lineHeight(size);
   const ensure = height => { if (y - height < bottom) addPage(); };
   const drawLines = (lines, x, size = 11, strong = false, color = textColor) => {
     const font = strong ? bold : regular;
-    for (const line of lines) { page.drawText(line, { x, y, size, font, color }); y -= size * 1.42; }
+    for (const line of lines) { page.drawText(line, { x, y, size, font, color }); y -= lineHeight(size); }
   };
-  const paragraph = (value, size = 11, strong = false, color = textColor, gap = 8) => {
-    const lines = wrap(value, size, strong); ensure(linesHeight(lines, size) + gap); drawLines(lines, margin, size, strong, color); y -= gap;
+  const paragraph = (value, size = 11, strong = false, color = textColor, gap = 8, maxWidth = width, x = margin) => {
+    const lines = wrap(value, size, strong, maxWidth); ensure(linesHeight(lines, size) + gap); drawLines(lines, x, size, strong, color); y -= gap;
   };
-  const title = value => { const lines = wrap(value, 20, true); ensure(linesHeight(lines, 20) + 20); drawLines(lines, margin, 20, true, ink); y -= 10; };
-  const card = (heading, entries) => {
-    const prepared = entries.flatMap(entry => {
-      const headingLines = entry.label ? wrap(entry.label, 11, true, width - 32) : [];
-      const bodyLines = wrap(entry.text || '', 10.5, false, width - 32);
-      return [...headingLines.map(line => ({ line, size: 11, strong: true, color: ink })), ...bodyLines.map(line => ({ line, size: 10.5, strong: false, color: textColor })), { spacer: true }];
+  const titleHeight = value => linesHeight(wrap(value, 20, true), 20) + 12;
+  const title = (value, followingHeight = 0) => {
+    const lines = wrap(value, 20, true); ensure(linesHeight(lines, 20) + 12 + followingHeight); drawLines(lines, margin, 20, true, ink); y -= 12;
+  };
+  const cardRows = (heading, entries) => {
+    const rows = [];
+    if (heading) wrap(heading, 13, true, width - 28).forEach(line => rows.push({ line, size: 13, strong: true, color: ink }));
+    entries.forEach((entry, index) => {
+      if (entry.label) wrap(entry.label, 10.5, true, width - 28).forEach(line => rows.push({ line, size: 10.5, strong: true, color: ink }));
+      wrap(entry.text || '', 9.6, false, width - 28).forEach(line => rows.push({ line, size: 9.6, strong: false, color: textColor }));
+      if (index < entries.length - 1) rows.push({ spacer: true });
     });
-    const headingLines = heading ? wrap(heading, 14, true, width - 32).map(line => ({ line, size: 14, strong: true, color: ink })) : [];
-    const height = 20 + [...headingLines, ...prepared].reduce((total, row) => total + (row.spacer ? 7 : row.size * 1.42), 0) + 12;
-    ensure(height);
-    const top = y, cardBottom = y - height;
+    return rows;
+  };
+  const cardHeight = rows => 24 + rows.reduce((total, row) => total + (row.spacer ? 5 : lineHeight(row.size)), 0) + 12;
+  const card = (heading, entries) => {
+    const rows = cardRows(heading, entries), height = cardHeight(rows); ensure(height);
+    const cardBottom = y - height;
     page.drawRectangle({ x: margin, y: cardBottom, width, height, color: surface, borderColor: border, borderWidth: .8 });
-    y -= 18;
-    for (const row of [...headingLines, ...prepared]) {
-      if (row.spacer) { y -= 7; continue; }
-      page.drawText(row.line, { x: margin + 16, y, size: row.size, font: row.strong ? bold : regular, color: row.color });
-      y -= row.size * 1.42;
-    }
-    y = cardBottom - 16;
+    y -= 16;
+    rows.forEach(row => {
+      if (row.spacer) { y -= 5; return; }
+      page.drawText(row.line, { x: margin + 14, y, size: row.size, font: row.strong ? bold : regular, color: row.color });
+      y -= lineHeight(row.size);
+    });
+    y = cardBottom - 10;
+    return height;
   };
-  const score = value => value === null ? 'Información insuficiente' : `${value.toFixed(1)} / 5 · ${LEVELS[Math.floor(value)]}`;
-  const axisLabels = ['Dirección', 'Presencia', 'Clientes', 'Operación', 'Datos', 'Personas'];
-  const drawRadar = () => {
-    const cx = 164, cy = y - 142, radius = 82;
-    const point = (index, radiusValue) => ({ x: cx + Math.cos(Math.PI / 2 - index * Math.PI / 3) * radiusValue, y: cy + Math.sin(Math.PI / 2 - index * Math.PI / 3) * radiusValue });
-    for (let ring = 1; ring <= 5; ring++) for (let index = 0; index < 6; index++) page.drawLine({ start: point(index, radius * ring / 5), end: point((index + 1) % 6, radius * ring / 5), thickness: .5, color: border });
-    const values = record.result.axes.map((axis, index) => axis.score === null ? null : point(index, axis.score / 5 * radius));
-    if (values.every(Boolean)) values.forEach((item, index) => page.drawLine({ start: item, end: values[(index + 1) % 6], thickness: 2, color: ink }));
-    values.filter(Boolean).forEach(item => page.drawCircle({ x: item.x, y: item.y, size: 3.5, color: ink }));
-    axisLabels.forEach((label, index) => { const item = point(index, 108); page.drawText(label, { x: item.x - regular.widthOfTextAtSize(label, 8) / 2, y: item.y, size: 8, font: regular, color: muted }); });
-  };
-
-  addPage();
-  paragraph('TU PUNTO DE PARTIDA · MODELO ' + (record.result.version || ''), 10, true, ink, 6);
-  title('Diagnóstico de madurez digital');
-  paragraph(record.contact?.company_name || 'Tu negocio', 14, true, textColor, 14);
-  paragraph('Este resultado organiza la información que compartiste y orienta próximos pasos prácticos. Es una autoevaluación orientativa, no una auditoría.', 11, false, muted, 8);
-  paragraph('Escala: 0 No establecido a 5 En mejora continua. Cada eje puede tener decimales porque promedia sus dos prácticas. Los temas sin información suficiente no se califican.', 10, false, muted, 18);
-
-  const coverTop = y, coverHeight = 258, leftWidth = 238, gap = 18, rightX = margin + leftWidth + gap, rightWidth = width - leftWidth - gap;
-  ensure(coverHeight + 20);
-  page.drawRectangle({ x: margin, y: y - coverHeight, width: leftWidth, height: coverHeight, color: surface, borderColor: border, borderWidth: .8 });
-  page.drawRectangle({ x: rightX, y: y - coverHeight, width: rightWidth, height: coverHeight, color: surface, borderColor: border, borderWidth: .8 });
-  page.drawText('Estado de tus ejes', { x: margin + 16, y: y - 22, size: 14, font: bold, color: ink });
-  drawRadar();
-  page.drawText(`${record.result.coverage} de 6 ejes con información suficiente`, { x: margin + 16, y: y - coverHeight + 22, size: 9, font: regular, color: muted });
-  page.drawText('Tu perfil digital', { x: rightX + 16, y: y - 22, size: 14, font: bold, color: ink });
-  let profileY = y - 47;
-  record.result.axes.forEach(axis => {
-    page.drawText(axis.name, { x: rightX + 16, y: profileY, size: 9.5, font: bold, color: textColor });
-    profileY -= 12;
-    page.drawText(score(axis.score), { x: rightX + 16, y: profileY, size: 9, font: regular, color: muted });
-    profileY -= 19;
-  });
-  y = coverTop - coverHeight - 20;
-
-  title('Lo que compartiste');
-  paragraph(record.result.editorial?.summary || record.context || 'No se registró una descripción adicional del negocio.', 11, false, textColor, 12);
-  record.result.axes.forEach(axis => card(axis.name, axis.criteria.map(criterion => ({
-    label: criterion.name.endsWith('?') ? criterion.name : `${criterion.name}:`,
-    text: `${record.result.editorial?.criteria?.[criterion.id] || criterion.fact.evidence || 'Falta información para evaluar esta práctica.'} ${score(criterion.score)}`
-  }))));
-
-  title('Tus próximos pasos');
-  if (!record.result.actions.length) paragraph('Conserva las prácticas que funcionan y completa los temas pendientes antes de priorizar nuevas acciones.');
-  record.result.actions.forEach((action, index) => card(`PRIORIDAD ${index + 1} · ${action.axis}`, [
+  const axisEntries = axis => axis.criteria.map(criterion => ({
+    label: criterion.name.endsWith('?') ? criterion.name : criterion.name + ':',
+    text: (record.result.editorial?.criteria?.[criterion.id] || criterion.fact.evidence || 'No evaluable con la información compartida.') + '  ' + score(criterion.score)
+  }));
+  const actionEntries = action => [
     { label: action.title, text: action.step },
     { label: 'Por qué', text: action.evidence || 'Se relaciona con la información compartida.' },
     { label: 'Cómo darle seguimiento', text: action.indicator },
     { text: action.support }
-  ]));
-  paragraph('Guarda este resultado y vuelve a evaluarlo cuando hayas aplicado mejoras. Las comparaciones requieren el mismo negocio y la misma versión del modelo.', 10, false, muted, 12);
+  ];
+  const score = value => value === null ? 'Información insuficiente' : value.toFixed(1) + ' / 5 · ' + LEVELS[Math.floor(value)];
+  const axisLabels = ['Dirección', 'Presencia', 'Clientes', 'Operación', 'Datos', 'Personas'];
+  const drawRadar = () => {
+    const cx = 164, cy = y - 134, radius = 76;
+    const point = (index, radiusValue) => ({ x: cx + Math.cos(Math.PI / 2 - index * Math.PI / 3) * radiusValue, y: cy + Math.sin(Math.PI / 2 - index * Math.PI / 3) * radiusValue });
+    for (let ring = 1; ring <= 5; ring++) for (let index = 0; index < 6; index++) page.drawLine({ start: point(index, radius * ring / 5), end: point((index + 1) % 6, radius * ring / 5), thickness: .5, color: border });
+    const values = record.result.axes.map((axis, index) => axis.score === null ? null : point(index, axis.score / 5 * radius));
+    if (values.every(Boolean)) values.forEach((item, index) => page.drawLine({ start: item, end: values[(index + 1) % 6], thickness: 2, color: ink }));
+    values.filter(Boolean).forEach(item => page.drawCircle({ x: item.x, y: item.y, size: 3.2, color: ink }));
+    axisLabels.forEach((label, index) => { const item = point(index, 101); page.drawText(label, { x: item.x - regular.widthOfTextAtSize(label, 8) / 2, y: item.y, size: 8, font: regular, color: muted }); });
+  };
+
+  addPage();
+  paragraph('TU PUNTO DE PARTIDA · MODELO ' + (record.result.version || ''), 10, true, ink, 5);
+  title('Diagnóstico de madurez digital');
+  paragraph(record.contact?.company_name || 'Tu negocio', 13, true, textColor, 10);
+  paragraph('Este resultado organiza la información que compartiste y orienta próximos pasos prácticos. Es una autoevaluación orientativa, no una auditoría.', 10.5, false, muted, 6);
+  paragraph('Escala: 0 No establecido a 5 En mejora continua. Cada eje puede tener decimales porque promedia sus dos prácticas. Los temas sin información suficiente no se califican.', 9.5, false, muted, 12);
+  const coverTop = y, coverHeight = 230, leftWidth = 238, gap = 18, rightX = margin + leftWidth + gap, rightWidth = width - leftWidth - gap;
+  ensure(coverHeight + 12);
+  page.drawRectangle({ x: margin, y: y - coverHeight, width: leftWidth, height: coverHeight, color: surface, borderColor: border, borderWidth: .8 });
+  page.drawRectangle({ x: rightX, y: y - coverHeight, width: rightWidth, height: coverHeight, color: surface, borderColor: border, borderWidth: .8 });
+  page.drawText('Estado de tus ejes', { x: margin + 14, y: y - 20, size: 13, font: bold, color: ink });
+  drawRadar();
+  page.drawText(record.result.coverage + ' de 6 ejes con información suficiente', { x: margin + 14, y: y - coverHeight + 17, size: 8.5, font: regular, color: muted });
+  page.drawText('Tu perfil digital', { x: rightX + 14, y: y - 20, size: 13, font: bold, color: ink });
+  let profileY = y - 42;
+  record.result.axes.forEach(axis => {
+    page.drawText(axis.name, { x: rightX + 14, y: profileY, size: 8.7, font: bold, color: textColor }); profileY -= 11;
+    page.drawText(score(axis.score), { x: rightX + 14, y: profileY, size: 8.3, font: regular, color: muted }); profileY -= 17;
+  });
+  y = coverTop - coverHeight - 10;
+  card('Resumen de tu negocio', [{ text: record.result.editorial?.summary || record.context || 'No se registró una descripción adicional del negocio.' }]);
+
+  addPage();
+  const firstAxisHeight = cardHeight(cardRows(record.result.axes[0].name, axisEntries(record.result.axes[0])));
+  title('Lo que compartiste', firstAxisHeight);
+  record.result.axes.slice(0, 3).forEach(axis => card(axis.name, axisEntries(axis)));
+
+  addPage();
+  record.result.axes.slice(3).forEach(axis => card(axis.name, axisEntries(axis)));
+  const firstAction = record.result.actions[0];
+  if (!firstAction) { title('Tus próximos pasos'); paragraph('Conserva las prácticas que funcionan y completa los temas pendientes antes de priorizar nuevas acciones.'); }
+  else {
+    const firstActionHeight = cardHeight(cardRows('PRIORIDAD 1 · ' + firstAction.axis, actionEntries(firstAction)));
+    if (y - titleHeight('Tus próximos pasos') - firstActionHeight < bottom) addPage();
+    title('Tus próximos pasos', firstActionHeight);
+    card('PRIORIDAD 1 · ' + firstAction.axis, actionEntries(firstAction));
+    record.result.actions.slice(1).forEach((action, index) => card('PRIORIDAD ' + (index + 2) + ' · ' + action.axis, actionEntries(action)));
+  }
+  paragraph('Guarda este resultado y vuelve a evaluarlo cuando hayas aplicado mejoras. Las comparaciones requieren el mismo negocio y la misma versión del modelo.', 9.5, false, muted, 9);
 
   const compared = comparison(record);
   if (compared) {
-    title('Respecto a tu evaluación anterior');
-    paragraph(`Evaluación anterior: ${new Date(record.previous.created_at).toLocaleDateString('es-CO')}`, 10, false, muted, 10);
-    if (compared.compatible) card('Cambios por eje', compared.rows.map(row => ({ label: row.name, text: `${row.before === null ? 'Pendiente' : row.before.toFixed(1)} → ${row.now === null ? 'Pendiente' : row.now.toFixed(1)} · ${row.delta === null ? 'Sin comparación suficiente' : `Diferencia: ${row.delta > 0 ? '+' : ''}${row.delta.toFixed(1)} puntos`}` })));
+    const changes = compared.compatible ? compared.rows.map(row => ({ label: row.name, text: (row.before === null ? 'Pendiente' : row.before.toFixed(1)) + ' a ' + (row.now === null ? 'Pendiente' : row.now.toFixed(1)) + ' · ' + (row.delta === null ? 'Sin comparación suficiente' : 'Diferencia: ' + (row.delta > 0 ? '+' : '') + row.delta.toFixed(1) + ' puntos') })) : [];
+    const changesHeight = compared.compatible ? cardHeight(cardRows('Cambios por eje', changes)) : 60;
+    title('Respecto a tu evaluación anterior', changesHeight);
+    paragraph('Evaluación anterior: ' + new Date(record.previous.created_at).toLocaleDateString('es-CO'), 9.5, false, muted, 7);
+    if (compared.compatible) card('Cambios por eje', changes);
     else paragraph('El negocio o la versión del modelo cambió. Por eso no calculamos diferencias automáticas.');
   }
-  paragraph('Referencia del diagnóstico: ' + (record.id || 'Vista de prueba'), 9, false, muted, 0);
+  paragraph('Referencia del diagnóstico: ' + (record.id || 'Vista de prueba'), 8.5, false, muted, 0);
   const pages = pdf.getPages();
-  pages.forEach((item, index) => item.drawText(`${index + 1} / ${pages.length} · Autoevaluación orientativa`, { x: margin, y: 30, size: 9, font: regular, color: muted }));
+  pages.forEach((item, index) => item.drawText((index + 1) + ' / ' + pages.length + ' · Autoevaluación orientativa', { x: margin, y: 30, size: 9, font: regular, color: muted }));
   return pdf.save();
 }
