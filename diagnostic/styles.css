@@ -14,3 +14,8 @@
 /* El historial no necesita la altura fija de las tarjetas de inicio. */
 .diagnostic-history > .card{min-height:0;padding:24px 26px}
 .diagnostic-history > .card .client-actions{margin-top:14px}
+
+/* Mantiene el mismo ancho útil en todas las vistas del diagnóstico. */
+.diagnostic-intro{max-width:none;margin:20px 0 36px}
+.diagnostic-entry,.diagnostic-entry-actions,.diagnostic-entry + p{max-width:none;margin-inline:0}
+.diagnostic-conversation,.diagnostic-review{max-width:none;margin-inline:0}
