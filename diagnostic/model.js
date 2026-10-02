@@ -1,5 +1,5 @@
-export const VERSION = '1.3.0';
-export const LEVELS = ['No establecido', 'Inicial', 'En desarrollo', 'Gestionado', 'Medido', 'En mejora continua'];
+export const VERSION = '1.4.1';
+export const LEVELS = ['No establecido', 'Inicial', 'Repetible', 'Definido', 'Medido', 'Optimizado'];
 const criterion = (id, name, steps) => ({ id, name, steps });
 export const AXES = [
   { id: 'direction', name: 'Dirección y prioridades', question: '¿Qué te gustaría mejorar primero en tu negocio y cómo decides quién lo hace y cuándo revisar si funcionó?', criteria: [

@@ -1,9 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { AXES, evaluate, scoreCriterion , QUESTIONS } from '../diagnostic/model.js';
+import { AXES, evaluate, scoreCriterion, QUESTIONS, VERSION, LEVELS } from '../diagnostic/model.js';
 import { reportHTML, radar, makePDF, comparison } from '../diagnostic/report.js';
 
 const observed = n => ({ status: 'observed', evidence: 'Revisamos los pendientes cada semana.', steps: Array.from({ length: 5 }, (_, i) => i < n ? 'Revisamos los pendientes cada semana.' : '') });
+test('version 1.4.1 preserves the six-level maturity scale', () => {
+  assert.equal(VERSION, '1.4.1');
+  assert.deepEqual(LEVELS, ['No establecido', 'Inicial', 'Repetible', 'Definido', 'Medido', 'Optimizado']);
+});
+
 test('unknown and missing never become zero', () => {
   assert.equal(scoreCriterion(), null);
   assert.equal(scoreCriterion({ status: 'unknown' }), null);
@@ -60,8 +65,11 @@ test('commercial goal comes before a hidden continuity rule', () => {
 });
 
 
-test('questions are mapped exactly to every model practice', () => {
-  const expected = AXES.flatMap(axis => axis.criteria.map(criterion => `${axis.id}-${criterion.id}`)).sort();
-  const actual = QUESTIONS.map(question => question.id).sort();
-  assert.deepEqual(actual, expected);
+test('every initial question covers one complete axis and its practices', () => {
+  assert.equal(QUESTIONS.length, AXES.length);
+  for (const axis of AXES) {
+    const question = QUESTIONS.find(item => item.axis_id === axis.id);
+    assert.ok(question);
+    assert.deepEqual(question.practice_ids, axis.criteria.map(criterion => criterion.id));
+  }
 });
