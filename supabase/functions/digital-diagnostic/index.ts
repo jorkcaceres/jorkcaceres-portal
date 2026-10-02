@@ -332,7 +332,6 @@ Deno.serve(async request => {
             s.phase = 'review';
             s.messages.push({ role: 'assistant', content: reviewMessage(s) });
           } else {
-            s.messages.push({ role: 'assistant', content: 'Gracias. Sigamos con el siguiente tema para completar tu diagnóstico.' });
             s.messages.push({ role: 'assistant', content: QUESTIONS[s.question].question });
           }
         }
