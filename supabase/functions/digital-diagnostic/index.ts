@@ -62,8 +62,12 @@ const reviewMessage = (s: any) => {
   return 'Gracias. Ya tengo la información necesaria para preparar tu diagnóstico.';
 };
 async function refreshFacts(s: any, guidance: DiagnosticGuidance) {
-  const readings = await Promise.all(AXES.map(axis => interpret({ ...axis, question: axis.question, criteria: axis.criteria }, s.messages, s.context, guidance)));
-  s.facts = Object.assign({}, ...readings.map(reading => reading.facts));
+  const facts: Record<string, unknown> = {};
+  for (const axis of AXES) {
+    const reading = await interpret({ ...axis, question: axis.question, criteria: axis.criteria }, s.messages, s.context, guidance);
+    Object.assign(facts, reading.facts);
+  }
+  s.facts = facts;
 }
 async function interpret(axis: typeof AXES[number], transcript: { role: string; content: string }[], context: string, guidance: DiagnosticGuidance) {
   const key = Deno.env.get('OPENAI_API_KEY');
