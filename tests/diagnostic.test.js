@@ -5,7 +5,7 @@ import { reportHTML, radar, makePDF, comparison } from '../diagnostic/report.js'
 
 const observed = n => ({ status: 'observed', evidence: 'Revisamos los pendientes cada semana.', steps: Array.from({ length: 5 }, (_, i) => i < n ? 'Revisamos los pendientes cada semana.' : '') });
 test('version 1.4.1 preserves the six-level maturity scale', () => {
-  assert.equal(VERSION, '1.4.1');
+  assert.equal(VERSION, '1.4.2');
   assert.deepEqual(LEVELS, ['No establecido', 'Inicial', 'Repetible', 'Definido', 'Medido', 'Optimizado']);
 });
 
@@ -60,8 +60,9 @@ test('PDF generator handles Spanish, long words and missing scores', async () =>
 test('commercial goal comes before a hidden continuity rule', () => {
   const facts = Object.fromEntries(AXES.flatMap(axis => axis.criteria.map(c => [c.id, observed(1)])));
   const result = evaluate(facts, 'Quiero mejorar mi modelo comercial y atraer nuevos clientes.');
-  assert.equal(result.actions[0].axis, 'Dirección y prioridades');
-  assert.equal(result.actions[1].axis, 'Presencia y captación');
+  assert.equal(result.actions[0].axis, 'Presencia y captación');
+  assert.equal(result.actions[1].axis, 'Clientes y fidelización');
+  assert.equal(result.actions[2].axis, 'Dirección y prioridades');
 });
 
 

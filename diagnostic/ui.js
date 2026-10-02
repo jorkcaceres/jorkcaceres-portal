@@ -1,6 +1,6 @@
 import { countryOptions, normalizePhone } from './phone.js';
-import { AXES, QUESTIONS, VERSION, scoreCriterion } from './model.js?v=1.4.1';
-import { escape as esc, reportHTML, makePDF } from './report.js?v=1.3.6';
+import { AXES, QUESTIONS, VERSION, scoreCriterion } from './model.js?v=1.4.2';
+import { escape as esc, reportHTML, makePDF } from './report.js?v=1.3.7';
 
 export function createDiagnostic(deps) {
   const { app, supabase, state, header, publicHeader, footer, mountTurnstile, captchaToken, resetTurnstile, helpUrl, adminNav, adminModuleShell, arrowIcon } = deps;

@@ -1,4 +1,4 @@
-export const VERSION = '1.4.1';
+export const VERSION = '1.4.2';
 export const LEVELS = ['No establecido', 'Inicial', 'Repetible', 'Definido', 'Medido', 'Optimizado'];
 const criterion = (id, name, steps) => ({ id, name, steps });
 export const AXES = [
@@ -38,6 +38,12 @@ export const ACTIONS = [
   ['Define un indicador que te ayude a decidir', 'Elige una pregunta de negocio, identifica una fuente confiable y revisa el indicador semanalmente.', 'Revisiones que terminan en una decisión.', 'Puedes empezar con los registros que ya tienes y comprobar que la información sea suficiente para decidir.'],
   ['Comprueba cómo continuarías trabajando', 'Identifica quién controla las cuentas y cómo recuperar información. Acuerda un responsable para revisar los accesos y la recuperación.', 'Cuentas con responsable y recuperación comprobada.', 'Puedes organizar la revisión. Una evaluación especializada de seguridad requiere un especialista.'],
 ];
+const COMMERCIAL_ACTIONS = {
+  presence: ['Crea un registro comercial único', 'Durante un mes, registra cada consulta en la herramienta que ya usas: canal de origen, necesidad, estado y próxima acción.', 'Consultas con origen y próxima acción registrados.', 'No necesitas otra herramienta: empieza con un único registro que puedas revisar.'],
+  customers: ['Revisa los pendientes comerciales cada semana', 'Una vez por semana, revisa las consultas y clientes activos para definir qué conversación necesita respuesta o próximo paso.', 'Pendientes comerciales sin próxima acción.', 'Usa el registro comercial que ya creaste para no depender de la memoria o mensajes dispersos.'],
+  direction: ['Decide qué ajustar al cierre de mes', 'Al final del mes, compara las consultas, propuestas y clientes logrados. Elige un ajuste concreto para el siguiente mes.', 'Una decisión mensual basada en consultas, propuestas y clientes.', 'Aprovecha la información que ya registras para convertirla en una rutina de decisión.'],
+};
+
 const MEASURED_ACTIONS = [
   ['Comprueba el resultado de una prioridad', 'Toma una mejora que ya esté en marcha y compara un indicador antes y después de aplicarla.', 'Mejoras con resultado revisado frente al objetivo.'],
   ['Mide qué canal aporta oportunidades', 'Durante un mes, relaciona consultas, oportunidades y ventas con su canal de origen para decidir dónde concentrarte.', 'Conversión de consultas en oportunidades por canal.'],
@@ -65,8 +71,9 @@ export function evaluate(facts = {}, context = '') {
   const candidates = axes.map((a, index) => ({ ...a, index })).filter(a => a.score !== null && a.score < 4)
     .sort((a, b) => a.score - b.score);
   // The stated business objective guides the order; no axis is promoted by a hidden rule.
-  const goalAxes = /modelo comercial|oferta|ventas|captar|captaci[oó]n|clientes potenciales|nuevos clientes/i.test(context)
-    ? ['direction', 'presence', 'customers']
+  const commercialGoal = /modelo comercial|oferta|ventas|captar|captaci[oó]n|clientes potenciales|nuevos clientes/i.test(context);
+  const goalAxes = commercialGoal
+    ? ['presence', 'customers', 'direction']
     : /pedidos|responder|seguimiento/i.test(context) ? ['customers', 'operations'] : [];
   const rank = a => {
     const position = goalAxes.indexOf(a.id);
@@ -74,6 +81,9 @@ export function evaluate(facts = {}, context = '') {
   };
   candidates.sort((a, b) => rank(a) - rank(b) || a.score - b.score);
   return { version: VERSION, axes, coverage: axes.filter(a => a.score !== null).length,
-    actions: candidates.slice(0, 3).map(a => { const action = a.score >= 3 ? MEASURED_ACTIONS[a.index] : ACTIONS[a.index]; return { axis: a.name, evidence: [...new Set(a.criteria.map(c => c.fact.evidence).filter(Boolean))].join(' '), title: action[0], step: action[1], indicator: action[2], support: ACTIONS[a.index][3] }; }) };
+    actions: candidates.slice(0, 3).map(a => {
+      const action = commercialGoal && COMMERCIAL_ACTIONS[a.id] ? COMMERCIAL_ACTIONS[a.id] : a.score >= 3 ? MEASURED_ACTIONS[a.index] : ACTIONS[a.index];
+      return { axis: a.name, evidence: [...new Set(a.criteria.map(c => c.fact.evidence).filter(Boolean))].join(' '), title: action[0], step: action[1], indicator: action[2], support: action[3] || ACTIONS[a.index][3] };
+    }) };
 }
 
