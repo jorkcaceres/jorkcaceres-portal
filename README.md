@@ -15,4 +15,4 @@ La siguiente etapa conectará autenticación, datos, almacenamiento de comproban
 
 ## Publicación
 
-Hostinger publica el contenido de este repositorio en `public_html/portal`, asociado a `portal.jorkcaceres.com`.
+Hostinger publica la rama `main` en `portal.jorkcaceres.com`. El trabajo diario se guarda en `develop`; ver `CLAUDE.md`.

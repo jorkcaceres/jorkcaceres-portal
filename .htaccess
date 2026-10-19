@@ -1,0 +1,19 @@
+# Portal Jorkcáceres — protección del sitio estático publicado por Hostinger.
+# Hostinger copia el repositorio completo: aquí se bloquea todo lo que el navegador no necesita.
+
+# Carpetas de desarrollo: código del servidor, SQL y pruebas.
+RedirectMatch 404 (?i)/(supabase|tests|output|node_modules)(/|$)
+
+# Documentación, configuración, licencias y archivos ocultos.
+<FilesMatch "(?i)(\.(md|sql|ts|mjs|json|lock|log|env|sh)$|^\.|^LICENSE|LICENSE$)">
+  Require all denied
+</FilesMatch>
+
+# Cabeceras de seguridad. frame-ancestors permite incrustar el portal solo en sitios de jorkcaceres.com.
+<IfModule mod_headers.c>
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  Header always set Permissions-Policy "camera=(), microphone=(), geolocation=()"
+  Header always set Strict-Transport-Security "max-age=31536000"
+  Header always set Content-Security-Policy "upgrade-insecure-requests; frame-ancestors 'self' https://jorkcaceres.com https://*.jorkcaceres.com"
+</IfModule>
